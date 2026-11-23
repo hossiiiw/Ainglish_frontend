@@ -1,0 +1,164 @@
+/* ----------------dashboard----------- */
+@keyframes dashboard-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes dashboard-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes dashboard-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 25px rgb(139 92 246 / 8%);
+  }
+
+  50% {
+    box-shadow: 0 0 35px rgb(139 92 246 / 20%);
+  }
+}
+
+.panel-animation {
+  animation: dashboard-fade-up 0.65s ease both;
+}
+
+.stat-card {
+  animation: dashboard-fade-up 0.7s ease both;
+}
+
+.stat-card:nth-child(2) {
+  animation-delay: 0.08s;
+}
+
+.stat-card:nth-child(3) {
+  animation-delay: 0.16s;
+}
+
+.stat-card:nth-child(4) {
+  animation-delay: 0.24s;
+}
+
+.dashboard-hero {
+  animation: dashboard-fade-up 0.8s ease both;
+}
+
+.dashboard-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    110deg,
+    transparent 30%,
+    rgb(255 255 255 / 10%) 50%,
+    transparent 70%
+  );
+  transform: translateX(100%);
+  animation: hero-shine 5s ease-in-out infinite;
+}
+
+@keyframes hero-shine {
+  0%,
+  65% {
+    transform: translateX(100%);
+  }
+
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+.stat-card:hover {
+  transform: translateY(-5px);
+  animation: dashboard-glow 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ----------landing--------- */
+
+@keyframes landing-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes landing-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
+@keyframes landing-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(139 92 246 / 15%);
+  }
+  50% {
+    box-shadow: 0 0 0 14px rgb(139 92 246 / 0%);
+  }
+}
+
+.landing-fade-up {
+  animation: landing-fade-up 0.8s ease both;
+}
+
+.landing-visual {
+  animation: landing-float 6s ease-in-out infinite;
+}
+
+.feature-card {
+  transition:
+    transform 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.feature-card:hover {
+  transform: translateY(-8px);
+  border-color: var(--app-primary);
+  box-shadow: 0 18px 40px rgb(139 92 246 / 10%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-fade-up,
+  .landing-visual {
+    animation: none;
+  }
+
+  .feature-card {
+    transition: none;
+  }
+}
