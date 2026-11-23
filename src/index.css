@@ -1,5 +1,13 @@
 @import "tailwindcss";
+@layer base {
+  html {
+    @apply scroll-smooth;
+  }
+}
 
+body {
+  font-family: "B Nazanin", Tahoma, Arial, sans-serif;
+}
 :root {
   --app-background: #f8f7fc;
   --app-surface: #ffffff;

@@ -1,6 +1,11 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="fa" dir="rtl">
   <head>
+    <script>
+      const savedTheme = localStorage.getItem("theme") || "light";
+
+      document.documentElement.classList.toggle("dark", savedTheme === "dark");
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AInglish</title>

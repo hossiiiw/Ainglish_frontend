@@ -1,12 +1,137 @@
-import { NavLink } from "react-router-dom";
+import { useState } from "react";
+import { NavLink, useNavigate } from "react-router-dom";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
 function Register() {
+  const navigate = useNavigate();
+
+  const [formData, setFormData] = useState({
+    username: "",
+    email: "",
+    phone: "",
+    password: "",
+    confirmPassword: "",
+  });
+
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+
+    setError("");
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setError("");
+    setSuccess("");
+
+    const { username, email, phone, password, confirmPassword } = formData;
+
+    if (username.trim().length < 3 || username.trim().length > 50) {
+      setError("نام کاربری باید بین ۳ تا ۵۰ کاراکتر باشد.");
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError("لطفاً یک ایمیل معتبر وارد کنید.");
+      return;
+    }
+
+    if (!/^09\d{9}$/.test(phone)) {
+      setError("شماره موبایل باید با 09 شروع شده و ۱۱ رقم باشد.");
+      return;
+    }
+
+    if (password.length < 8 || password.length > 128) {
+      setError("رمز عبور باید حداقل ۸ و حداکثر ۱۲۸ کاراکتر باشد.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("رمز عبور و تکرار آن یکسان نیستند.");
+      return;
+    }
+
+    if (!acceptedTerms) {
+      setError("برای ثبت‌نام باید قوانین و مقررات را بپذیرید.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch(`${API_URL}/auth/register`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username: username.trim(),
+          email: email.trim().toLowerCase(),
+          phone,
+          password,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        if (response.status === 409) {
+          throw new Error(
+            data.detail ||
+              "این ایمیل، شماره موبایل یا نام کاربری قبلاً ثبت شده است.",
+          );
+        }
+
+        if (response.status === 422) {
+          const detail = data.detail;
+
+          if (Array.isArray(detail)) {
+            throw new Error(detail.map((item) => item.msg).join("، "));
+          }
+
+          throw new Error(detail || "اطلاعات واردشده معتبر نیست.");
+        }
+
+        throw new Error(data.detail || "ثبت‌نام انجام نشد. دوباره تلاش کنید.");
+      }
+
+      setSuccess("حساب کاربری با موفقیت ساخته شد.");
+
+      setTimeout(() => {
+        navigate("/login", {
+          replace: true,
+          state: {
+            registered: true,
+            email: email.trim().toLowerCase(),
+          },
+        });
+      }, 1000);
+    } catch (error) {
+      setError(error.message || "ارتباط با سرور برقرار نشد.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const inputClass =
+    "h-11 w-full rounded-xl border border-app-border bg-app-input px-3 text-sm text-app-text outline-none transition placeholder:text-app-text-muted/60 focus:border-app-primary focus:ring-4 focus:ring-app-primary/10";
+
   return (
     <main
       dir="rtl"
       className="relative flex min-h-screen items-center justify-center overflow-hidden bg-app-background px-3 py-4 sm:px-5 lg:h-screen lg:min-h-0 lg:py-3"
     >
-      {/* Background Decorations */}
       <div className="pointer-events-none absolute -right-32 -top-32 h-96 w-96 rounded-full bg-app-primary/10 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-40 -left-32 h-96 w-96 rounded-full bg-purple-500/10 blur-3xl" />
 
@@ -61,7 +186,7 @@ function Register() {
           </div>
 
           {/* Form */}
-          <form className="space-y-3">
+          <form onSubmit={handleSubmit} className="space-y-3">
             {/* Username */}
             <div>
               <label
@@ -71,35 +196,43 @@ function Register() {
                 نام کاربری
               </label>
 
-              <div className="flex h-11 items-center gap-3 rounded-xl border border-app-border bg-app-input px-3 transition focus-within:border-app-primary focus-within:ring-4 focus-within:ring-app-primary/10">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  className="h-4.5 w-4.5 shrink-0 text-app-text-muted"
-                >
-                  <circle
-                    cx="12"
-                    cy="8"
-                    r="4"
-                    stroke="currentColor"
-                    strokeWidth="1.7"
-                  />
-                  <path
-                    d="M4 21C4 16.8 7.6 14 12 14C16.4 14 20 16.8 20 21"
-                    stroke="currentColor"
-                    strokeWidth="1.7"
-                    strokeLinecap="round"
-                  />
-                </svg>
+              <input
+                id="username"
+                name="username"
+                type="text"
+                autoComplete="username"
+                placeholder="نام کاربری خود را وارد کنید"
+                value={formData.username}
+                onChange={handleChange}
+                required
+                minLength={3}
+                maxLength={50}
+                className={inputClass}
+                dir="auto"
+              />
+            </div>
 
-                <input
-                  id="username"
-                  type="text"
-                  placeholder="نام کاربری خود را وارد کنید"
-                  className="h-full w-full bg-transparent text-xs text-app-text outline-none placeholder:text-app-text-muted/60 sm:text-sm"
-                  dir="auto"
-                />
-              </div>
+            {/* Email */}
+            <div>
+              <label
+                htmlFor="email"
+                className="mb-1.5 block text-xs font-semibold text-app-text"
+              >
+                ایمیل
+              </label>
+
+              <input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                placeholder="example@email.com"
+                value={formData.email}
+                onChange={handleChange}
+                required
+                className={inputClass}
+                dir="ltr"
+              />
             </div>
 
             {/* Phone */}
@@ -111,37 +244,20 @@ function Register() {
                 شماره موبایل
               </label>
 
-              <div className="flex h-11 items-center gap-3 rounded-xl border border-app-border bg-app-input px-3 transition focus-within:border-app-primary focus-within:ring-4 focus-within:ring-app-primary/10">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  className="h-4.5 w-4.5 shrink-0 text-app-text-muted"
-                >
-                  <rect
-                    x="6"
-                    y="2.5"
-                    width="12"
-                    height="19"
-                    rx="2.5"
-                    stroke="currentColor"
-                    strokeWidth="1.7"
-                  />
-                  <path
-                    d="M10 18.5H14"
-                    stroke="currentColor"
-                    strokeWidth="1.7"
-                    strokeLinecap="round"
-                  />
-                </svg>
-
-                <input
-                  id="phone"
-                  type="tel"
-                  placeholder="09123456789"
-                  className="h-full w-full bg-transparent text-xs text-app-text outline-none placeholder:text-app-text-muted/60 sm:text-sm"
-                  dir="ltr"
-                />
-              </div>
+              <input
+                id="phone"
+                name="phone"
+                type="tel"
+                inputMode="numeric"
+                autoComplete="tel"
+                placeholder="09123456789"
+                value={formData.phone}
+                onChange={handleChange}
+                required
+                maxLength={11}
+                className={inputClass}
+                dir="ltr"
+              />
             </div>
 
             {/* Password */}
@@ -153,77 +269,54 @@ function Register() {
                 رمز عبور
               </label>
 
-              <div className="flex h-11 items-center gap-3 rounded-xl border border-app-border bg-app-input px-3 transition focus-within:border-app-primary focus-within:ring-4 focus-within:ring-app-primary/10">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  className="h-4.5 w-4.5 shrink-0 text-app-text-muted"
-                >
-                  <rect
-                    x="4"
-                    y="10"
-                    width="16"
-                    height="11"
-                    rx="2.5"
-                    stroke="currentColor"
-                    strokeWidth="1.7"
-                  />
-                  <path
-                    d="M8 10V7a4 4 0 1 1 8 0v3"
-                    stroke="currentColor"
-                    strokeWidth="1.7"
-                    strokeLinecap="round"
-                  />
-                </svg>
-
-                <input
-                  id="password"
-                  type="password"
-                  placeholder="رمز عبور خود را وارد کنید"
-                  className="h-full w-full bg-transparent text-xs text-app-text outline-none placeholder:text-app-text-muted/60 sm:text-sm"
-                />
-              </div>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="new-password"
+                placeholder="حداقل ۸ کاراکتر"
+                value={formData.password}
+                onChange={handleChange}
+                required
+                minLength={8}
+                maxLength={128}
+                className={inputClass}
+                dir="ltr"
+              />
             </div>
 
             {/* Confirm Password */}
             <div>
               <label
-                htmlFor="confirm-password"
+                htmlFor="confirmPassword"
                 className="mb-1.5 block text-xs font-semibold text-app-text"
               >
                 تکرار رمز عبور
               </label>
 
-              <div className="flex h-11 items-center gap-3 rounded-xl border border-app-border bg-app-input px-3 transition focus-within:border-app-primary focus-within:ring-4 focus-within:ring-app-primary/10">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  className="h-4.5 w-4.5 shrink-0 text-app-text-muted"
-                >
-                  <path
-                    d="M5 12L10 17L20 7"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-
-                <input
-                  id="confirm-password"
-                  type="password"
-                  placeholder="رمز عبور را مجدداً وارد کنید"
-                  className="h-full w-full bg-transparent text-xs text-app-text outline-none placeholder:text-app-text-muted/60 sm:text-sm"
-                />
-              </div>
+              <input
+                id="confirmPassword"
+                name="confirmPassword"
+                type="password"
+                autoComplete="new-password"
+                placeholder="رمز عبور را مجدداً وارد کنید"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                required
+                className={inputClass}
+                dir="ltr"
+              />
             </div>
 
             {/* Terms */}
             <label className="flex cursor-pointer items-start gap-2 pt-0.5 text-[11px] leading-5 text-app-text-muted">
               <input
                 type="checkbox"
+                checked={acceptedTerms}
+                onChange={(event) => setAcceptedTerms(event.target.checked)}
                 className="mt-1 h-3.5 w-3.5 shrink-0 accent-app-primary"
               />
+
               <span>
                 با{" "}
                 <NavLink to="/terms" className="font-semibold text-app-primary">
@@ -233,21 +326,51 @@ function Register() {
               </span>
             </label>
 
+            {/* Error */}
+            {error && (
+              <div
+                role="alert"
+                className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2.5 text-xs leading-6 text-red-500"
+              >
+                {error}
+              </div>
+            )}
+
+            {/* Success */}
+            {success && (
+              <div
+                role="status"
+                className="rounded-xl border border-green-500/20 bg-green-500/10 px-3 py-2.5 text-xs leading-6 text-green-600"
+              >
+                {success}
+              </div>
+            )}
+
             {/* Submit */}
             <button
-              type="button"
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-app-primary text-sm font-bold text-white shadow-lg shadow-app-primary/25 transition hover:-translate-y-0.5 hover:bg-app-primary-hover hover:shadow-xl hover:shadow-app-primary/30"
+              type="submit"
+              disabled={loading}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-app-primary text-sm font-bold text-white shadow-lg shadow-app-primary/25 transition hover:-translate-y-0.5 hover:bg-app-primary-hover hover:shadow-xl hover:shadow-app-primary/30 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
             >
-              ساخت حساب کاربری
-              <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
-                <path
-                  d="M5 12H19M19 12L12 5M19 12L12 19"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              {loading ? (
+                <>
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  در حال ساخت حساب...
+                </>
+              ) : (
+                <>
+                  ساخت حساب کاربری
+                  <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
+                    <path
+                      d="M5 12H19M19 12L12 5M19 12L12 19"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </>
+              )}
             </button>
           </form>
 
@@ -285,7 +408,6 @@ function Register() {
 
         {/* Visual Section */}
         <section className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-app-primary via-[#7040d5] to-[#39206f] p-9 text-white lg:flex xl:p-12">
-          {/* Decorations */}
           <div className="absolute -left-32 -top-32 h-80 w-80 rounded-full border border-white/10" />
           <div className="absolute -left-20 -top-20 h-60 w-60 rounded-full border border-white/10" />
           <div className="absolute -bottom-40 -right-20 h-80 w-80 rounded-full bg-white/5 blur-2xl" />
@@ -307,46 +429,34 @@ function Register() {
             </p>
           </div>
 
-          {/* Feature Cards */}
           <div className="relative z-10 my-6 space-y-3">
-            <div className="flex items-center gap-3 rounded-2xl border border-white/15 bg-white/10 p-3.5 backdrop-blur-xl">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 text-xl">
-                🤖
-              </div>
-              <div>
-                <h3 className="text-sm font-bold">مترجم هوشمند</h3>
-                <p className="mt-1 text-[11px] text-white/65">
-                  ترجمه سریع و دقیق با کمک هوش مصنوعی
-                </p>
-              </div>
-            </div>
+            {[
+              ["🤖", "مترجم هوشمند", "ترجمه سریع و دقیق با کمک هوش مصنوعی"],
+              [
+                "📚",
+                "مدیریت واژگان",
+                "واژگان مورد علاقه‌ات را همیشه همراه داشته باش",
+              ],
+              ["🎯", "یادگیری هدفمند", "هر روز یک قدم به تسلط بیشتر نزدیک شو"],
+            ].map(([icon, title, description]) => (
+              <div
+                key={title}
+                className="flex items-center gap-3 rounded-2xl border border-white/15 bg-white/10 p-3.5 backdrop-blur-xl"
+              >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 text-xl">
+                  {icon}
+                </div>
 
-            <div className="flex items-center gap-3 rounded-2xl border border-white/15 bg-white/10 p-3.5 backdrop-blur-xl">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 text-xl">
-                📚
+                <div>
+                  <h3 className="text-sm font-bold">{title}</h3>
+                  <p className="mt-1 text-[11px] text-white/65">
+                    {description}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-sm font-bold">مدیریت واژگان</h3>
-                <p className="mt-1 text-[11px] text-white/65">
-                  واژگان مورد علاقه‌ات را همیشه همراه داشته باش
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 rounded-2xl border border-white/15 bg-white/10 p-3.5 backdrop-blur-xl">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 text-xl">
-                🎯
-              </div>
-              <div>
-                <h3 className="text-sm font-bold">یادگیری هدفمند</h3>
-                <p className="mt-1 text-[11px] text-white/65">
-                  هر روز یک قدم به تسلط بیشتر نزدیک شو
-                </p>
-              </div>
-            </div>
+            ))}
           </div>
 
-          {/* Footer */}
           <div className="relative z-10 flex items-center justify-between gap-4 text-[11px] text-white/60">
             <span>© 2026 Ainglish</span>
             <span>Learn smarter, not harder.</span>

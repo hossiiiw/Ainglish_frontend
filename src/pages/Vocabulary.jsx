@@ -1,83 +1,255 @@
+
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import DashboardHeader from "../components/Dashboard/DashboardHeader";
 import Sidebar from "../components/Sidebar";
+import api from "../services/api";
 
-const words = [
-  {
-    word: "Consistent",
-    pronunciation: "/kənˈsɪstənt/",
-    meaning: "مداوم، پیوسته، باثبات",
-    example: "You need to be consistent to improve.",
-    translation: "برای پیشرفت باید مداومت داشته باشی.",
-    category: "عمومی",
-    level: "متوسط",
-    status: "یادگرفته‌شده",
-    color: "success",
-    date: "امروز",
-  },
-  {
-    word: "Allocate",
-    pronunciation: "/ˈæləkeɪt/",
-    meaning: "اختصاص دادن، تخصیص دادن",
-    example: "We allocate time for learning.",
-    translation: "ما برای یادگیری زمان اختصاص می‌دهیم.",
-    category: "تخصصی",
-    level: "پیشرفته",
-    status: "در حال یادگیری",
-    color: "warning",
-    date: "دیروز",
-  },
-  {
-    word: "Opportunity",
-    pronunciation: "/ˌɑːpərˈtuːnəti/",
-    meaning: "فرصت، موقعیت مناسب",
-    example: "This is a great opportunity.",
-    translation: "این یک فرصت عالی است.",
-    category: "عمومی",
-    level: "متوسط",
-    status: "یادگرفته‌شده",
-    color: "success",
-    date: "۲ روز پیش",
-  },
-  {
-    word: "Implement",
-    pronunciation: "/ˈɪmplɪment/",
-    meaning: "اجرا کردن، پیاده‌سازی کردن",
-    example: "We need to implement this feature.",
-    translation: "باید این قابلیت را پیاده‌سازی کنیم.",
-    category: "برنامه‌نویسی",
-    level: "پیشرفته",
-    status: "در حال یادگیری",
-    color: "warning",
-    date: "۳ روز پیش",
-  },
-  {
-    word: "Reliable",
-    pronunciation: "/rɪˈlaɪəbl/",
-    meaning: "قابل اعتماد، مطمئن",
-    example: "We need a reliable solution.",
-    translation: "ما به یک راهکار قابل اعتماد نیاز داریم.",
-    category: "عمومی",
-    level: "متوسط",
-    status: "یادگرفته‌شده",
-    color: "success",
-    date: "۴ روز پیش",
-  },
-];
+const PAGE_SIZE = 7;
+
+const normalizeText = (value) => {
+  return String(value ?? "")
+    .toLowerCase()
+    .normalize("NFKC")
+    .replace(/[يى]/g, "ی")
+    .replace(/ك/g, "ک")
+    .replace(/ۀ/g, "ه")
+    .replace(/ة/g, "ه")
+    .replace(/[\u064B-\u065F\u0670]/g, "")
+    .replace(/[\u200c\u200f\u200e]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+};
 
 const Vocabulary = () => {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const [words, setWords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const [search, setSearch] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const [deletingId, setDeletingId] = useState(null);
+
+  const [editingWord, setEditingWord] = useState(null);
+  const [editWord, setEditWord] = useState("");
+  const [editMeaning, setEditMeaning] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const closeSidebar = () => setSidebarOpen(false);
+
+  const getResponseData = (response) => {
+    return response?.data ?? response;
+  };
+
+  const getErrorMessage = (err, fallback) => {
+    if (err?.status === 401) {
+      return "نشست شما منقضی شده است. لطفاً دوباره وارد شوید.";
+    }
+
+    return (
+      err?.data?.detail ||
+      err?.response?.data?.detail ||
+      err?.message ||
+      fallback
+    );
+  };
+
+  // -------------------- FETCH WORDS --------------------
+
+  const fetchWords = useCallback(async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await api.get("/words?limit=100");
+      const result = getResponseData(response);
+
+      setWords(Array.isArray(result) ? result : []);
+    } catch (err) {
+      console.error("Fetch vocabulary error:", err);
+      setError(getErrorMessage(err, "دریافت واژگان با خطا مواجه شد."));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchWords();
+  }, [fetchWords]);
+
+  // -------------------- SEARCH --------------------
+
+  const normalizedSearch = useMemo(
+    () => normalizeText(search),
+    [search],
+  );
+
+  const filteredWords = useMemo(() => {
+    if (!normalizedSearch) return words;
+
+    const searchTerms = normalizedSearch
+      .split(" ")
+      .filter(Boolean);
+
+    return words.filter((item) => {
+      const word = normalizeText(item.word);
+      const meaning = normalizeText(item.meaning);
+
+      const searchableText = `${word} ${meaning}`;
+
+      return searchTerms.every((term) =>
+        searchableText.includes(term),
+      );
+    });
+  }, [words, normalizedSearch]);
+
+  // -------------------- PAGINATION --------------------
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredWords.length / PAGE_SIZE),
+  );
+
+  const currentWords = filteredWords.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE,
+  );
+
+  useEffect(() => {
+    setCurrentPage((prev) => Math.min(prev, totalPages));
+  }, [totalPages]);
+
+  const handleSearch = (value) => {
+    setSearch(value);
+    setCurrentPage(1);
+  };
+
+  // -------------------- DELETE --------------------
+
+  const handleDelete = async (id) => {
+    const confirmed = window.confirm(
+      "آیا از حذف این مورد از واژگان خود مطمئن هستید؟",
+    );
+
+    if (!confirmed) return;
+
+    setDeletingId(id);
+    setError("");
+
+    try {
+      await api.delete(`/words/${id}`);
+
+      setWords((prev) =>
+        prev.filter((item) => item.id !== id),
+      );
+    } catch (err) {
+      console.error("Delete vocabulary error:", err);
+      setError(getErrorMessage(err, "حذف واژه انجام نشد."));
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // -------------------- EDIT --------------------
+
+  const openEditModal = (item) => {
+    setEditingWord(item);
+    setEditWord(item.word || "");
+    setEditMeaning(item.meaning || "");
+    setError("");
+  };
+
+  const closeEditModal = () => {
+    if (savingEdit) return;
+
+    setEditingWord(null);
+    setEditWord("");
+    setEditMeaning("");
+    setError("");
+  };
+
+  const handleEdit = async (e) => {
+    e.preventDefault();
+
+    const cleanWord = editWord.trim();
+    const cleanMeaning = editMeaning.trim();
+
+    if (!cleanWord || !cleanMeaning) {
+      setError("هر دو فیلد واژه و معنی باید تکمیل شوند.");
+      return;
+    }
+
+    setSavingEdit(true);
+    setError("");
+
+    try {
+      const response = await api.put(
+        `/words/${editingWord.id}`,
+        {
+          word: cleanWord,
+          meaning: cleanMeaning,
+        },
+      );
+
+      const updatedWord = getResponseData(response);
+
+      setWords((prev) =>
+        prev.map((item) =>
+          item.id === editingWord.id
+            ? updatedWord
+            : item,
+        ),
+      );
+
+      setEditingWord(null);
+      setEditWord("");
+      setEditMeaning("");
+    } catch (err) {
+      console.error("Update vocabulary error:", err);
+      setError(getErrorMessage(err, "ویرایش واژه انجام نشد."));
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  // -------------------- HELPERS --------------------
+
+  const isLongText = (value) => {
+    return String(value || "").trim().includes(" ");
+  };
+
+  const formatCount = (value) => {
+    return Number(value || 0).toLocaleString("fa-IR");
+  };
+
+  const getPageNumbers = () => {
+    const pages = [];
+    const start = Math.max(1, currentPage - 2);
+    const end = Math.min(totalPages, currentPage + 2);
+
+    for (let i = start; i <= end; i++) {
+      pages.push(i);
+    }
+
+    return pages;
+  };
+
+  // -------------------- RENDER --------------------
+
   return (
     <main dir="rtl" className="min-h-screen bg-app-background text-app-text">
       <div className="flex min-h-screen">
-        {/* Sidebar */}
-        <aside className="hidden w-64 shrink-0 lg:block">
-          <Sidebar />
-        </aside>
+        <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} />
 
-        {/* Main Content */}
         <div className="min-w-0 flex-1 px-4 py-6 md:px-8 lg:px-10">
           <div className="mx-auto max-w-7xl space-y-8">
-            <DashboardHeader />
+
+            <DashboardHeader
+              onMenuClick={() => setSidebarOpen((prev) => !prev)}
+            />
 
             {/* Page Heading */}
             <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -94,76 +266,111 @@ const Vocabulary = () => {
                 </h1>
 
                 <p className="mt-2 text-sm text-app-text-muted">
-                  دایره لغاتت را گسترش بده و پیشرفت خودت را دنبال کن.
+                  دایره لغاتت را گسترش بده و واژه‌ها و جمله‌های مهم را ذخیره کن.
                 </p>
               </div>
 
-              <Link
-                to="/add-vocab"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-app-primary px-5 py-3 text-sm font-bold text-white shadow-lg shadow-app-primary/20 transition hover:bg-app-primary-hover"
-              >
-                <span className="text-lg">＋</span>
-                افزودن واژه جدید
-              </Link>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={fetchWords}
+                  disabled={loading}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-app-border bg-app-surface px-4 py-3 text-sm font-bold text-app-text-muted transition hover:bg-app-surface-hover disabled:opacity-50"
+                >
+                  ↻ بروزرسانی
+                </button>
+
+                <Link
+                  to="/add-vocab"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-app-primary px-5 py-3 text-sm font-bold text-white shadow-lg shadow-app-primary/20 transition hover:bg-app-primary-hover"
+                >
+                  <span className="text-lg">＋</span>
+                  افزودن واژه جدید
+                </Link>
+              </div>
             </section>
 
+            {/* Error */}
+            {error && (
+              <div className="flex flex-col gap-3 rounded-2xl border border-app-danger/20 bg-app-danger/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm leading-7 text-app-danger">
+                  {error}
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() => setError("")}
+                  className="self-start rounded-lg px-3 py-1 text-xs font-bold text-app-danger hover:bg-app-danger/10"
+                >
+                  بستن
+                </button>
+              </div>
+            )}
+
             {/* Statistics */}
-            <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               <div className="rounded-2xl border border-app-border bg-app-surface p-5">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-app-text-muted">کل واژگان</span>
+                  <span className="text-sm text-app-text-muted">
+                    کل موارد ذخیره‌شده
+                  </span>
                   <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-app-primary/10 text-xl text-app-primary">
                     ◈
                   </span>
                 </div>
-                <p className="mt-4 text-3xl font-black">۱۲۸</p>
+
+                <p className="mt-4 text-3xl font-black">
+                  {loading ? "..." : formatCount(words.length)}
+                </p>
+
                 <p className="mt-2 text-xs text-app-text-muted">
-                  تمام واژه‌های ذخیره‌شده
+                  مجموع واژه‌ها و جمله‌های شخصی شما
                 </p>
               </div>
 
               <div className="rounded-2xl border border-app-border bg-app-surface p-5">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-app-text-muted">
-                    یادگرفته‌شده
+                    واژه‌ها و اصطلاحات
                   </span>
                   <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-app-success/10 text-xl text-app-success">
                     ✓
                   </span>
                 </div>
-                <p className="mt-4 text-3xl font-black">۸۶</p>
-                <p className="mt-2 text-xs text-app-success">
-                  ۶۷٪ از کل واژگان
+
+                <p className="mt-4 text-3xl font-black">
+                  {loading
+                    ? "..."
+                    : formatCount(
+                        words.filter((item) => !isLongText(item.word)).length,
+                      )}
+                </p>
+
+                <p className="mt-2 text-xs text-app-text-muted">
+                  موارد کوتاه ذخیره‌شده
                 </p>
               </div>
 
               <div className="rounded-2xl border border-app-border bg-app-surface p-5">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-app-text-muted">
-                    در حال یادگیری
+                    جمله‌های ذخیره‌شده
                   </span>
                   <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-app-warning/10 text-xl text-app-warning">
                     ◷
                   </span>
                 </div>
-                <p className="mt-4 text-3xl font-black">۴۲</p>
-                <p className="mt-2 text-xs text-app-text-muted">
-                  واژگانی که نیاز به تمرین دارند
-                </p>
-              </div>
 
-              <div className="rounded-2xl border border-app-border bg-app-surface p-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-app-text-muted">
-                    افزوده‌شده امروز
-                  </span>
-                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-sky-500/10 text-xl text-sky-500">
-                    ✦
-                  </span>
-                </div>
-                <p className="mt-4 text-3xl font-black">۵</p>
+                <p className="mt-4 text-3xl font-black">
+                  {loading
+                    ? "..."
+                    : formatCount(
+                        words.filter((item) => isLongText(item.word)).length,
+                      )}
+                </p>
+
                 <p className="mt-2 text-xs text-app-text-muted">
-                  واژه‌های جدید امروز
+                  جمله‌های اصلی و ترجمه‌های ذخیره‌شده
                 </p>
               </div>
             </section>
@@ -173,63 +380,40 @@ const Vocabulary = () => {
               <div className="rounded-2xl border border-app-border bg-app-surface p-6 xl:col-span-2">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <h2 className="font-extrabold">پیشرفت یادگیری</h2>
+                    <h2 className="font-extrabold">مجموعه یادگیری من</h2>
                     <p className="mt-1 text-xs text-app-text-muted">
-                      وضعیت کلی واژگان ذخیره‌شده
+                      وضعیت فعلی اطلاعات ذخیره‌شده در حساب شما
                     </p>
                   </div>
-                  <span className="rounded-full bg-app-success/10 px-3 py-1.5 text-xs font-bold text-app-success">
-                    عملکرد خوب
+
+                  <span className="rounded-full bg-app-primary/10 px-3 py-1.5 text-xs font-bold text-app-primary">
+                    {loading ? "در حال دریافت" : "اطلاعات واقعی"}
                   </span>
                 </div>
 
-                <div className="mt-6 flex items-center gap-5">
-                  <div
-                    className="relative flex h-28 w-28 shrink-0 items-center justify-center rounded-full"
-                    style={{
-                      background:
-                        "conic-gradient(var(--app-success) 0% 67%, var(--app-input) 67% 100%)",
-                    }}
-                  >
-                    <div className="flex h-20 w-20 items-center justify-center rounded-full bg-app-surface text-center">
-                      <div>
-                        <p className="text-2xl font-black">۶۷٪</p>
-                        <p className="text-[10px] text-app-text-muted">
-                          یادگیری
-                        </p>
-                      </div>
-                    </div>
+                <div className="mt-6">
+                  <div className="mb-3 flex items-center justify-between text-xs">
+                    <span className="text-app-text-muted">
+                      تعداد موارد ذخیره‌شده
+                    </span>
+                    <span className="font-bold text-app-primary">
+                      {formatCount(words.length)} مورد
+                    </span>
                   </div>
 
-                  <div className="min-w-0 flex-1 space-y-4">
-                    <div>
-                      <div className="mb-2 flex justify-between text-xs">
-                        <span className="text-app-text-muted">
-                          یادگرفته‌شده
-                        </span>
-                        <span className="font-bold text-app-success">
-                          ۸۶ واژه
-                        </span>
-                      </div>
-                      <div className="h-2 overflow-hidden rounded-full bg-app-input">
-                        <div className="h-full w-[67%] rounded-full bg-app-success" />
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="mb-2 flex justify-between text-xs">
-                        <span className="text-app-text-muted">
-                          در حال یادگیری
-                        </span>
-                        <span className="font-bold text-app-warning">
-                          ۴۲ واژه
-                        </span>
-                      </div>
-                      <div className="h-2 overflow-hidden rounded-full bg-app-input">
-                        <div className="h-full w-[33%] rounded-full bg-app-warning" />
-                      </div>
-                    </div>
+                  <div className="h-3 overflow-hidden rounded-full bg-app-input">
+                    <div
+                      className="h-full rounded-full bg-app-primary transition-all duration-500"
+                      style={{
+                        width: words.length > 0 ? "100%" : "0%",
+                      }}
+                    />
                   </div>
+
+                  <p className="mt-4 text-xs leading-7 text-app-text-muted">
+                    می‌توانی واژه‌ها، اصطلاحات تخصصی و حتی جمله‌های کامل را از
+                    مترجم هوشمند به این مجموعه اضافه کنی.
+                  </p>
                 </div>
               </div>
 
@@ -238,16 +422,20 @@ const Vocabulary = () => {
 
                 <div className="relative">
                   <span className="text-3xl">✦</span>
-                  <h3 className="mt-4 text-lg font-black">وقت مرور واژگان!</h3>
+                  <h3 className="mt-4 text-lg font-black">
+                    واژه جدید یاد بگیر!
+                  </h3>
+
                   <p className="mt-2 text-sm leading-7 text-white/75">
-                    مرور منظم کلمات به تثبیت آن‌ها در حافظه بلندمدت کمک می‌کند.
+                    هر متن مهمی را که ترجمه می‌کنی ذخیره کن تا همیشه به آن
+                    دسترسی داشته باشی.
                   </p>
 
                   <Link
-                    to="/"
+                    to="/translator"
                     className="mt-5 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-[#5531a8] transition hover:bg-white/90"
                   >
-                    شروع مرور
+                    مترجم هوشمند
                     <span>←</span>
                   </Link>
                 </div>
@@ -256,208 +444,270 @@ const Vocabulary = () => {
 
             {/* Vocabulary Section */}
             <section className="space-y-5">
-              {/* Section Heading */}
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <h2 className="text-xl font-black">مجموعه واژگان من</h2>
+                  <h2 className="text-xl font-black">
+                    مجموعه واژگان من
+                  </h2>
                   <p className="mt-2 text-sm text-app-text-muted">
-                    واژه‌ها و اصطلاحاتی که برای یادگیری ذخیره کرده‌ای.
+                    واژه‌ها و جمله‌هایی که برای یادگیری ذخیره کرده‌ای.
                   </p>
                 </div>
 
                 <span className="text-xs font-semibold text-app-text-muted">
-                  ۱۲۸ واژه ثبت‌شده
+                  {formatCount(filteredWords.length)} نتیجه
                 </span>
               </div>
 
-              {/* Search & Filters */}
+              {/* Search */}
               <div className="rounded-2xl border border-app-border bg-app-surface p-4">
-                <div className="flex flex-col gap-3 xl:flex-row">
-                  <div className="relative min-w-0 flex-1">
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-lg text-app-text-muted">
-                      ⌕
-                    </span>
-                    <input
-                      type="search"
-                      placeholder="جست‌وجوی واژه یا معنی..."
-                      className="w-full rounded-xl border border-app-border bg-app-input py-3 pr-11 pl-4 text-sm text-app-text outline-none transition placeholder:text-app-text-muted focus:border-app-primary focus:ring-4 focus:ring-app-primary/10"
-                    />
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    <select className="min-w-32 flex-1 rounded-xl border border-app-border bg-app-input px-3 py-3 text-sm text-app-text outline-none focus:border-app-primary">
-                      <option>همه دسته‌ها</option>
-                      <option>عمومی</option>
-                      <option>تخصصی</option>
-                      <option>برنامه‌نویسی</option>
-                    </select>
-
-                    <select className="min-w-32 flex-1 rounded-xl border border-app-border bg-app-input px-3 py-3 text-sm text-app-text outline-none focus:border-app-primary">
-                      <option>همه سطح‌ها</option>
-                      <option>مبتدی</option>
-                      <option>متوسط</option>
-                      <option>پیشرفته</option>
-                    </select>
-
-                    <select className="min-w-32 flex-1 rounded-xl border border-app-border bg-app-input px-3 py-3 text-sm text-app-text outline-none focus:border-app-primary">
-                      <option>همه وضعیت‌ها</option>
-                      <option>یادگرفته‌شده</option>
-                      <option>در حال یادگیری</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Vocabulary Cards */}
-              <div className="grid gap-4 xl:grid-cols-2">
-                {words.map((item ,index) => (
-                  <article
-                    key={index}
-                    className="group relative overflow-hidden rounded-2xl border border-app-border bg-app-surface p-5 transition duration-300 hover:-translate-y-1 hover:border-app-primary/50 hover:shadow-xl hover:shadow-app-primary/5 sm:p-6"
-                  >
-                    {/* Decorative */}
-                    <div className="absolute -left-12 -top-12 h-32 w-32 rounded-full bg-app-primary/5 blur-2xl transition group-hover:bg-app-primary/10" />
-
-                    <div className="relative">
-                      {/* Card Top */}
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="rounded-lg bg-app-primary/10 px-2.5 py-1 text-[10px] font-bold text-app-primary">
-                              {item.category}
-                            </span>
-
-                            <span className="text-[10px] text-app-text-muted">
-                              {item.date}
-                            </span>
-                          </div>
-
-                          <h3
-                            dir="ltr"
-                            className="mt-4 text-2xl font-black tracking-tight text-app-text sm:text-3xl"
-                          >
-                            {item.word}
-                          </h3>
-
-                          <p
-                            dir="ltr"
-                            className="mt-1 text-xs tracking-wide text-app-text-muted"
-                          >
-                            {item.pronunciation}
-                          </p>
-                        </div>
-
-                        <div className="flex shrink-0 items-center gap-2">
-                          <span
-                            className={`rounded-full px-3 py-1.5 text-[10px] font-bold ${
-                              item.color === "success"
-                                ? "bg-app-success/10 text-app-success"
-                                : "bg-app-warning/10 text-app-warning"
-                            }`}
-                          >
-                            {item.status}
-                          </span>
-
-                          <button
-                            type="button"
-                            aria-label="گزینه‌های واژه"
-                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-app-border text-lg text-app-text-muted transition hover:bg-app-surface-hover hover:text-app-primary"
-                          >
-                            ⋯
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Meaning */}
-                      <div className="mt-5 rounded-xl bg-app-input/70 p-4">
-                        <div className="mb-2 flex items-center gap-2">
-                          <span className="h-1.5 w-1.5 rounded-full bg-app-primary" />
-                          <span className="text-[11px] font-bold text-app-text-muted">
-                            معنی واژه
-                          </span>
-                        </div>
-
-                        <p className="text-sm font-bold leading-7 text-app-text">
-                          {item.meaning}
-                        </p>
-                      </div>
-
-                      {/* Example */}
-                      <div className="mt-4">
-                        <div className="mb-2 flex items-center gap-2">
-                          <span className="text-sm text-app-primary">❝</span>
-                          <span className="text-[11px] font-bold text-app-text-muted">
-                            مثال در جمله
-                          </span>
-                        </div>
-
-                        <p
-                          dir="ltr"
-                          className="text-sm font-medium leading-7 text-app-text"
-                        >
-                          {item.example}
-                        </p>
-
-                        <p className="mt-1 text-xs leading-6 text-app-text-muted">
-                          {item.translation}
-                        </p>
-                      </div>
-
-                      {/* Card Footer */}
-                      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-app-border pt-4">
-                        <div className="flex items-center gap-2 text-xs text-app-text-muted">
-                          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-app-primary/10 text-app-primary">
-                            ◈
-                          </span>
-                          سطح {item.level}
-                        </div>
-
-                        <Link
-                          href={`/vocabulary/${encodeURIComponent(item.word)}`}
-                          className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-app-primary transition hover:bg-app-primary/10"
-                        >
-                          مشاهده جزئیات
-                          <span>←</span>
-                        </Link>
-                      </div>
-                    </div>
-                  </article>
-                ))}
-              </div>
-
-              {/* Pagination */}
-              <div className="flex flex-col gap-3 rounded-2xl border border-app-border bg-app-surface px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-xs text-app-text-muted">
-                  نمایش ۵ واژه از ۱۲۸ واژه
-                </p>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    className="rounded-lg border border-app-border px-3 py-2 text-xs text-app-text-muted transition hover:bg-app-surface-hover"
-                  >
-                    قبلی
-                  </button>
-
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-app-primary text-xs font-bold text-white">
-                    ۱
+                <div className="relative">
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-lg text-app-text-muted">
+                    ⌕
                   </span>
 
-                  <button
-                    type="button"
-                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-app-border text-xs text-app-text-muted transition hover:bg-app-surface-hover"
-                  >
-                    ۲
-                  </button>
+                  <input
+                    type="search"
+                    value={search}
+                    onChange={(e) => handleSearch(e.target.value)}
+                    placeholder="جست‌وجوی واژه، جمله یا معنی..."
+                    autoComplete="off"
+                    className="w-full rounded-xl border border-app-border bg-app-input py-3 pr-11 pl-12 text-sm text-app-text outline-none transition placeholder:text-app-text-muted focus:border-app-primary focus:ring-4 focus:ring-app-primary/10"
+                  />
 
-                  <button
-                    type="button"
-                    className="rounded-lg border border-app-border px-3 py-2 text-xs text-app-text-muted transition hover:bg-app-surface-hover"
-                  >
-                    بعدی
-                  </button>
+                  {search && (
+                    <button
+                      type="button"
+                      onClick={() => handleSearch("")}
+                      aria-label="پاک کردن جستجو"
+                      className="absolute left-4 top-1/2 -translate-y-1/2 rounded-lg p-1 text-app-text-muted transition hover:bg-app-surface-hover hover:text-app-text"
+                    >
+                      ×
+                    </button>
+                  )}
                 </div>
+
+                {search.trim() && (
+                  <p className="mt-3 text-xs text-app-text-muted">
+                    {filteredWords.length > 0
+                      ? `${formatCount(filteredWords.length)} مورد مطابق عبارت «${search.trim()}» پیدا شد.`
+                      : "موردی مطابق عبارت جستجو پیدا نشد."}
+                  </p>
+                )}
               </div>
+
+              {/* Loading */}
+              {loading ? (
+                <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-app-border bg-app-surface py-16">
+                  <div className="h-9 w-9 animate-spin rounded-full border-4 border-app-primary/20 border-t-app-primary" />
+                  <p className="text-sm text-app-text-muted">
+                    در حال دریافت واژگان شما...
+                  </p>
+                </div>
+              ) : currentWords.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-app-border bg-app-surface px-4 py-14 text-center">
+                  <div className="mb-4 text-5xl text-app-text-muted">
+                    ◈
+                  </div>
+
+                  <h3 className="font-bold">
+                    {search.trim()
+                      ? "نتیجه‌ای پیدا نشد"
+                      : "هنوز واژه‌ای ذخیره نکرده‌ای"}
+                  </h3>
+
+                  <p className="mx-auto mt-2 max-w-md text-sm leading-7 text-app-text-muted">
+                    {search.trim()
+                      ? "عبارت جست‌وجو را تغییر بده و دوباره امتحان کن."
+                      : "از طریق مترجم هوشمند یا فرم افزودن واژه، اولین مورد را به مجموعه خود اضافه کن."}
+                  </p>
+
+                  {!search.trim() && (
+                    <div className="mt-6 flex flex-wrap justify-center gap-3">
+                      <Link
+                        to="/translator"
+                        className="rounded-xl bg-app-primary px-5 py-3 text-sm font-bold text-white transition hover:bg-app-primary-hover"
+                      >
+                        مترجم هوشمند
+                      </Link>
+
+                      <Link
+                        to="/add-vocab"
+                        className="rounded-xl border border-app-border px-5 py-3 text-sm font-bold text-app-text transition hover:bg-app-surface-hover"
+                      >
+                        افزودن واژه
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <>
+                  {/* Vocabulary Cards */}
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    {currentWords.map((item) => {
+                      const isSentence = isLongText(item.word);
+
+                      return (
+                        <article
+                          key={item.id}
+                          className="group relative overflow-hidden rounded-2xl border border-app-border bg-app-surface p-5 transition duration-300 hover:-translate-y-1 hover:border-app-primary/50 hover:shadow-xl hover:shadow-app-primary/5 sm:p-6"
+                        >
+                          <div className="absolute -left-12 -top-12 h-32 w-32 rounded-full bg-app-primary/5 blur-2xl transition group-hover:bg-app-primary/10" />
+
+                          <div className="relative">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="rounded-lg bg-app-primary/10 px-2.5 py-1 text-[10px] font-bold text-app-primary">
+                                    {isSentence
+                                      ? "جمله ذخیره‌شده"
+                                      : "واژه ذخیره‌شده"}
+                                  </span>
+
+                                  <span className="text-[10px] text-app-text-muted">
+                                    شناسه: {item.id}
+                                  </span>
+                                </div>
+
+                                <h3
+                                  dir="auto"
+                                  className="mt-4 break-words text-xl font-black leading-9 tracking-tight text-app-text sm:text-2xl"
+                                >
+                                  {item.word}
+                                </h3>
+                              </div>
+
+                              <div className="flex shrink-0 items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => openEditModal(item)}
+                                  aria-label="ویرایش"
+                                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-app-border text-sm text-app-text-muted transition hover:bg-app-primary/10 hover:text-app-primary"
+                                >
+                                  ✎
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleDelete(item.id)}
+                                  disabled={deletingId === item.id}
+                                  aria-label="حذف"
+                                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-app-border text-sm text-app-danger transition hover:bg-app-danger/10 disabled:opacity-50"
+                                >
+                                  {deletingId === item.id ? "..." : "×"}
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="mt-5 rounded-xl bg-app-input/70 p-4">
+                              <div className="mb-2 flex items-center gap-2">
+                                <span className="h-1.5 w-1.5 rounded-full bg-app-primary" />
+                                <span className="text-[11px] font-bold text-app-text-muted">
+                                  معنی / ترجمه
+                                </span>
+                              </div>
+
+                              <p
+                                dir="auto"
+                                className="break-words whitespace-pre-wrap text-sm leading-8 text-app-text"
+                              >
+                                {item.meaning}
+                              </p>
+                            </div>
+
+                            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-app-border pt-4">
+                              <div className="flex items-center gap-2 text-xs text-app-text-muted">
+                                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-app-primary/10 text-app-primary">
+                                  ◈
+                                </span>
+                                ذخیره‌شده در واژگان شخصی
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  try {
+                                    await navigator.clipboard.writeText(
+                                      `${item.word}\n${item.meaning}`,
+                                    );
+                                  } catch (err) {
+                                    console.error("Copy error:", err);
+                                    setError("کپی متن انجام نشد.");
+                                  }
+                                }}
+                                className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-app-primary transition hover:bg-app-primary/10"
+                              >
+                                کپی متن
+                                <span>▣</span>
+                              </button>
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+
+                  {/* Pagination */}
+                  {totalPages > 1 && (
+                    <div className="flex flex-col gap-3 rounded-2xl border border-app-border bg-app-surface px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-xs text-app-text-muted">
+                        نمایش{" "}
+                        {formatCount((currentPage - 1) * PAGE_SIZE + 1)}
+                        {" تا "}
+                        {formatCount(
+                          Math.min(
+                            currentPage * PAGE_SIZE,
+                            filteredWords.length,
+                          ),
+                        )}
+                        {" از "}
+                        {formatCount(filteredWords.length)} مورد
+                      </p>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCurrentPage((prev) => Math.max(1, prev - 1))
+                          }
+                          disabled={currentPage === 1}
+                          className="rounded-lg border border-app-border px-3 py-2 text-xs text-app-text-muted transition hover:bg-app-surface-hover disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          قبلی
+                        </button>
+
+                        {getPageNumbers().map((page) => (
+                          <button
+                            key={page}
+                            type="button"
+                            onClick={() => setCurrentPage(page)}
+                            className={`flex h-9 w-9 items-center justify-center rounded-lg text-xs font-bold transition ${
+                              currentPage === page
+                                ? "bg-app-primary text-white"
+                                : "border border-app-border text-app-text-muted hover:bg-app-surface-hover"
+                            }`}
+                          >
+                            {formatCount(page)}
+                          </button>
+                        ))}
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCurrentPage((prev) =>
+                              Math.min(totalPages, prev + 1),
+                            )
+                          }
+                          disabled={currentPage === totalPages}
+                          className="rounded-lg border border-app-border px-3 py-2 text-xs text-app-text-muted transition hover:bg-app-surface-hover disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          بعدی
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </section>
 
             {/* Bottom Info */}
@@ -465,15 +715,110 @@ const Vocabulary = () => {
               <span className="text-xl text-app-primary">ⓘ</span>
 
               <p className="text-xs leading-7 text-app-text-muted">
-                برای یادگیری بهتر، واژه‌های جدید را همراه با مثال ذخیره کن و
-                به‌صورت منظم آن‌ها را مرور کن. اطلاعات فعلی این صفحه نمونه
-                نمایشی هستند و در مرحله اتصال به API با اطلاعات واقعی کاربر
-                جایگزین خواهند شد.
+                واژه‌ها و جمله‌های ذخیره‌شده به حساب کاربری شما متصل هستند.
+                می‌توانی هر مورد را ویرایش یا حذف کنی و برای مرورهای بعدی از
+                آن‌ها استفاده کنی.
               </p>
             </section>
           </div>
         </div>
       </div>
+
+      {/* Edit Modal */}
+      {editingWord && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) {
+              closeEditModal();
+            }
+          }}
+        >
+          <form
+            onSubmit={handleEdit}
+            className="w-full max-w-xl space-y-5 rounded-3xl border border-app-border bg-app-surface p-5 shadow-2xl sm:p-7"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-black">ویرایش واژه</h2>
+                <p className="mt-1 text-xs text-app-text-muted">
+                  اطلاعات موردنظر را ویرایش کن.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeEditModal}
+                disabled={savingEdit}
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-app-border text-lg text-app-text-muted transition hover:bg-app-surface-hover disabled:opacity-50"
+              >
+                ×
+              </button>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-bold">
+                واژه یا جمله اصلی
+              </label>
+
+              <textarea
+                dir="auto"
+                rows={3}
+                maxLength={10000}
+                value={editWord}
+                onChange={(e) => setEditWord(e.target.value)}
+                className="w-full resize-y rounded-xl border border-app-border bg-app-input p-4 text-sm leading-7 text-app-text outline-none transition focus:border-app-primary focus:ring-4 focus:ring-app-primary/10"
+                placeholder="واژه یا جمله را وارد کن..."
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-bold">
+                معنی یا ترجمه
+              </label>
+
+              <textarea
+                dir="auto"
+                rows={4}
+                maxLength={10000}
+                value={editMeaning}
+                onChange={(e) => setEditMeaning(e.target.value)}
+                className="w-full resize-y rounded-xl border border-app-border bg-app-input p-4 text-sm leading-7 text-app-text outline-none transition focus:border-app-primary focus:ring-4 focus:ring-app-primary/10"
+                placeholder="معنی یا ترجمه را وارد کن..."
+              />
+            </div>
+
+            {error && (
+              <div className="rounded-xl border border-app-danger/20 bg-app-danger/10 p-3 text-sm text-app-danger">
+                {error}
+              </div>
+            )}
+
+            <div className="flex flex-wrap justify-end gap-2 border-t border-app-border pt-4">
+              <button
+                type="button"
+                onClick={closeEditModal}
+                disabled={savingEdit}
+                className="rounded-xl border border-app-border px-5 py-3 text-sm font-bold text-app-text-muted transition hover:bg-app-surface-hover disabled:opacity-50"
+              >
+                انصراف
+              </button>
+
+              <button
+                type="submit"
+                disabled={
+                  savingEdit ||
+                  !editWord.trim() ||
+                  !editMeaning.trim()
+                }
+                className="rounded-xl bg-app-primary px-6 py-3 text-sm font-bold text-white transition hover:bg-app-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {savingEdit ? "در حال ذخیره..." : "ذخیره تغییرات"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </main>
   );
 };
