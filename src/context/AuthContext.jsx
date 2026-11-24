@@ -6,9 +6,11 @@ const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+
   const [token, setToken] = useState(() =>
     localStorage.getItem("access_token"),
   );
+
   const [loading, setLoading] = useState(true);
 
   // دریافت اطلاعات کاربر
@@ -25,6 +27,20 @@ export function AuthProvider({ children }) {
     }
 
     return await response.json();
+  };
+
+  // ارسال heartbeat
+  const sendHeartbeat = async (accessToken) => {
+    try {
+      await fetch(`${API_URL}/auth/heartbeat`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+    } catch (error) {
+      console.error("Heartbeat failed:", error);
+    }
   };
 
   // بررسی وضعیت ورود هنگام بارگذاری برنامه
@@ -49,6 +65,21 @@ export function AuthProvider({ children }) {
 
     initializeAuth();
   }, []);
+
+  // ثبت فعالیت کاربر هر ۶۰ ثانیه
+  useEffect(() => {
+    if (!token || !user) return;
+
+    sendHeartbeat(token);
+
+    const heartbeatInterval = setInterval(() => {
+      sendHeartbeat(token);
+    }, 60 * 1000);
+
+    return () => {
+      clearInterval(heartbeatInterval);
+    };
+  }, [token, user]);
 
   // ورود کاربر
   const login = async (email, password) => {

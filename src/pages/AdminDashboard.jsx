@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import DashboardHeader from "../components/Dashboard/DashboardHeader";
 import Sidebar from "../components/Sidebar";
 import api from "../services/api";
@@ -13,7 +14,7 @@ const buttonClass =
   "rounded-xl bg-app-primary px-5 py-3 text-sm font-bold text-white transition hover:bg-app-primary-hover disabled:cursor-not-allowed disabled:opacity-50";
 
 const secondaryButtonClass =
-  "rounded-lg border border-app-border px-3 py-2 text-xs font-semibold transition hover:bg-app-background disabled:cursor-not-allowed disabled:opacity-40";
+  "rounded-xl border border-app-border px-4 py-2.5 text-xs font-semibold transition hover:bg-app-background disabled:cursor-not-allowed disabled:opacity-40";
 
 const getErrorMessage = (error) => {
   const detail = error?.data?.detail;
@@ -22,6 +23,7 @@ const getErrorMessage = (error) => {
     const messages = {
       "User not found": "کاربر موردنظر پیدا نشد.",
       "Word not found": "واژه موردنظر پیدا نشد.",
+      "Super admin access required": "فقط مدیر ارشد به این بخش دسترسی دارد.",
       "You cannot delete your own admin account":
         "امکان حذف حساب مدیریت خودتان وجود ندارد.",
       "You cannot delete the last admin account":
@@ -41,23 +43,68 @@ const getErrorMessage = (error) => {
 const formatNumber = (number) =>
   new Intl.NumberFormat("fa-IR").format(number || 0);
 
+const formatDate = (date) => {
+  if (!date) return "ثبت نشده";
+
+  const parsedDate = new Date(date);
+
+  if (Number.isNaN(parsedDate.getTime())) return "نامشخص";
+
+  return new Intl.DateTimeFormat("fa-IR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(parsedDate);
+};
+
+const getRoleLabel = (role) => {
+  if (role === "super_admin") return "مدیر ارشد";
+  if (role === "admin") return "مدیر";
+  return "کاربر";
+};
+
+const RoleBadge = ({ role }) => {
+  const styles = {
+    super_admin: "bg-app-warning/10 text-app-warning",
+    admin: "bg-app-primary/10 text-app-primary",
+    user: "bg-app-background text-app-text-muted",
+  };
+
+  return (
+    <span
+      className={`inline-flex whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-bold ${
+        styles[role] || styles.user
+      }`}
+    >
+      {getRoleLabel(role)}
+    </span>
+  );
+};
+
+const OnlineBadge = ({ online }) => (
+  <span
+    className={`inline-flex items-center gap-2 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-bold ${
+      online
+        ? "bg-app-success/10 text-app-success"
+        : "bg-app-background text-app-text-muted"
+    }`}
+  >
+    <span
+      className={`h-2 w-2 rounded-full ${
+        online ? "bg-app-success" : "bg-app-text-muted"
+      }`}
+    />
+    {online ? "آنلاین" : "آفلاین"}
+  </span>
+);
+
 const Pagination = ({ total, offset, limit, onPageChange }) => {
   const currentPage = Math.floor(offset / limit) + 1;
   const totalPages = Math.max(1, Math.ceil(total / limit));
-
   const start = total === 0 ? 0 : offset + 1;
   const end = Math.min(offset + limit, total);
-
-  if (totalPages <= 1) {
-    return (
-      <div className="border-t border-app-border pt-4">
-        <p className="text-xs text-app-text-muted">
-          نمایش {formatNumber(start)} تا {formatNumber(end)} از{" "}
-          {formatNumber(total)} مورد
-        </p>
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col gap-3 border-t border-app-border pt-4 sm:flex-row sm:items-center sm:justify-between">
@@ -66,41 +113,59 @@ const Pagination = ({ total, offset, limit, onPageChange }) => {
         {formatNumber(total)} مورد
       </p>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          disabled={currentPage <= 1}
-          onClick={() => onPageChange(currentPage - 2)}
-          className={secondaryButtonClass}
-        >
-          قبلی
-        </button>
+      {totalPages > 1 && (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            disabled={currentPage <= 1}
+            onClick={() => onPageChange(currentPage - 2)}
+            className={secondaryButtonClass}
+          >
+            قبلی
+          </button>
 
-        <span className="flex h-9 min-w-9 items-center justify-center rounded-lg bg-app-primary px-3 text-xs font-bold text-white">
-          {formatNumber(currentPage)}
-        </span>
+          <span className="rounded-lg bg-app-primary px-3 py-2 text-xs font-bold text-white">
+            {formatNumber(currentPage)} از {formatNumber(totalPages)}
+          </span>
 
-        <span className="text-xs text-app-text-muted">
-          از {formatNumber(totalPages)}
-        </span>
-
-        <button
-          type="button"
-          disabled={currentPage >= totalPages}
-          onClick={() => onPageChange(currentPage)}
-          className={secondaryButtonClass}
-        >
-          بعدی
-        </button>
-      </div>
+          <button
+            type="button"
+            disabled={currentPage >= totalPages}
+            onClick={() => onPageChange(currentPage)}
+            className={secondaryButtonClass}
+          >
+            بعدی
+          </button>
+        </div>
+      )}
     </div>
   );
 };
 
+const StatCard = ({ title, value, description, icon }) => (
+  <div className="rounded-2xl border border-app-border bg-app-surface p-5 transition hover:border-app-primary/30">
+    <div className="flex items-start justify-between gap-3">
+      <div>
+        <p className="text-sm text-app-text-muted">{title}</p>
+        <h3 className="mt-3 text-3xl font-black tabular-nums">{value}</h3>
+        <p className="mt-2 text-xs text-app-text-muted">{description}</p>
+      </div>
+
+      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-app-primary/10 text-2xl">
+        {icon}
+      </div>
+    </div>
+  </div>
+);
+
 const AdminDashboard = () => {
-  // General state
-  const [loading, setLoading] = useState(true);
+  const { user: currentUser } = useAuth();
+
+  const isSuperAdmin = currentUser?.role === "super_admin";
+
+  // General
   const [notice, setNotice] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   // Users
   const [users, setUsers] = useState([]);
@@ -118,7 +183,7 @@ const AdminDashboard = () => {
   const [selectedUserSearch, setSelectedUserSearch] = useState("");
   const [selectedUserOffset, setSelectedUserOffset] = useState(0);
 
-  // All words
+  // Words
   const [words, setWords] = useState([]);
   const [wordsTotal, setWordsTotal] = useState(0);
   const [wordSearch, setWordSearch] = useState("");
@@ -127,7 +192,7 @@ const AdminDashboard = () => {
   const [wordsOffset, setWordsOffset] = useState(0);
   const [wordsLoading, setWordsLoading] = useState(false);
 
-  // Word editing
+  // Edit word
   const [editingWord, setEditingWord] = useState(null);
   const [editWordValue, setEditWordValue] = useState("");
   const [editMeaningValue, setEditMeaningValue] = useState("");
@@ -138,13 +203,20 @@ const AdminDashboard = () => {
   const [newPassword, setNewPassword] = useState("");
   const [resettingPassword, setResettingPassword] = useState(false);
 
+  // Create manager
+  const [managerForm, setManagerForm] = useState({
+    username: "",
+    email: "",
+    phone: "",
+    password: "",
+  });
+  const [creatingManager, setCreatingManager] = useState(false);
+
   const showNotice = (type, message) => {
     setNotice({ type, message });
   };
 
-  const clearNotice = () => {
-    setNotice(null);
-  };
+  const clearNotice = () => setNotice(null);
 
   // ---------------- USERS ----------------
 
@@ -183,25 +255,51 @@ const AdminDashboard = () => {
     setUserSearch(userSearchInput.trim());
   };
 
-  const handleDeleteUser = async (user) => {
+  const canDeleteUser = (targetUser) => {
+    if (targetUser.id === currentUser?.id) return false;
+    if (targetUser.role === "super_admin") return false;
+
+    if (!isSuperAdmin && targetUser.role === "admin") {
+      return false;
+    }
+
+    return true;
+  };
+
+  const canResetPassword = (targetUser) => {
+    if (targetUser.role === "super_admin") return false;
+
+    if (!isSuperAdmin && targetUser.role === "admin") {
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleDeleteUser = async (targetUser) => {
+    if (!canDeleteUser(targetUser)) {
+      showNotice("error", "شما اجازه حذف این حساب را ندارید.");
+      return;
+    }
+
     const confirmed = window.confirm(
-      `آیا از حذف حساب کاربری ${user.username} مطمئن هستید؟\nتمام اطلاعات مرتبط با این کاربر نیز ممکن است حذف شوند.`,
+      `آیا از حذف حساب ${targetUser.username} مطمئن هستید؟`,
     );
 
     if (!confirmed) return;
 
     try {
-      await api.delete(`/admin/users/${user.id}`);
+      await api.delete(`/admin/users/${targetUser.id}`);
 
-      showNotice("success", "کاربر با موفقیت حذف شد.");
+      showNotice("success", "حساب کاربری با موفقیت حذف شد.");
 
-      if (selectedUser?.id === user.id) {
+      if (selectedUser?.id === targetUser.id) {
         setSelectedUser(null);
         setSelectedUserWords([]);
         setSelectedUserWordsTotal(0);
       }
 
-      if (passwordUserId === String(user.id)) {
+      if (passwordUserId === String(targetUser.id)) {
         setPasswordUserId("");
         setNewPassword("");
       }
@@ -293,13 +391,8 @@ const AdminDashboard = () => {
         offset: String(wordsOffset),
       });
 
-      if (wordSearch.trim()) {
-        params.set("search", wordSearch.trim());
-      }
-
-      if (wordUserId.trim()) {
-        params.set("user_id", wordUserId.trim());
-      }
+      if (wordSearch.trim()) params.set("search", wordSearch.trim());
+      if (wordUserId.trim()) params.set("user_id", wordUserId.trim());
 
       const response = await api.get(`/admin/words?${params.toString()}`);
 
@@ -391,9 +484,7 @@ const AdminDashboard = () => {
 
       showNotice("success", "واژه با موفقیت ویرایش شد.");
 
-      const editedId = editingWord.id;
       const editedUserId = editingWord.user_id;
-
       cancelWordEdit();
 
       await fetchWords();
@@ -421,7 +512,14 @@ const AdminDashboard = () => {
     }
 
     if (newPassword.length < 8 || newPassword.length > 128) {
-      showNotice("error", "رمز عبور باید حداقل ۸ و حداکثر ۱۲۸ کاراکتر باشد.");
+      showNotice("error", "رمز عبور باید بین ۸ تا ۱۲۸ کاراکتر باشد.");
+      return;
+    }
+
+    const targetUser = users.find((item) => item.id === userId);
+
+    if (targetUser && !canResetPassword(targetUser)) {
+      showNotice("error", "اجازه تغییر رمز عبور این حساب را ندارید.");
       return;
     }
 
@@ -434,7 +532,7 @@ const AdminDashboard = () => {
 
       showNotice(
         "success",
-        "رمز عبور کاربر با موفقیت تغییر کرد. کاربر باید مجدداً وارد حساب شود.",
+        "رمز عبور تغییر کرد. کاربر باید مجدداً وارد حساب شود.",
       );
 
       setPasswordUserId("");
@@ -443,6 +541,77 @@ const AdminDashboard = () => {
       showNotice("error", getErrorMessage(error));
     } finally {
       setResettingPassword(false);
+    }
+  };
+
+  // ---------------- CREATE MANAGER ----------------
+
+  const handleManagerInput = (event) => {
+    const { name, value } = event.target;
+
+    setManagerForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleCreateManager = async (event) => {
+    event.preventDefault();
+
+    if (!isSuperAdmin) {
+      showNotice("error", "فقط مدیر ارشد می‌تواند مدیر جدید بسازد.");
+      return;
+    }
+
+    const { username, email, phone, password } = managerForm;
+
+    if (username.trim().length < 3) {
+      showNotice("error", "نام کاربری باید حداقل ۳ کاراکتر باشد.");
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      showNotice("error", "آدرس ایمیل معتبر نیست.");
+      return;
+    }
+
+    if (!/^09\d{9}$/.test(phone.trim())) {
+      showNotice("error", "شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود.");
+      return;
+    }
+
+    if (password.length < 8 || password.length > 128) {
+      showNotice("error", "رمز عبور باید بین ۸ تا ۱۲۸ کاراکتر باشد.");
+      return;
+    }
+
+    setCreatingManager(true);
+
+    try {
+      await api.post("/admin/managers", {
+        username: username.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        password,
+      });
+
+      showNotice("success", "مدیر جدید با موفقیت ساخته شد.");
+
+      setManagerForm({
+        username: "",
+        email: "",
+        phone: "",
+        password: "",
+      });
+
+      setUsersOffset(0);
+      setUserSearch("");
+      setUserSearchInput("");
+      await fetchUsers();
+    } catch (error) {
+      showNotice("error", getErrorMessage(error));
+    } finally {
+      setCreatingManager(false);
     }
   };
 
@@ -458,10 +627,10 @@ const AdminDashboard = () => {
         <div className="min-w-0 flex-1 px-4 py-6 md:px-8 lg:px-10">
           <DashboardHeader />
 
-          <div className="mx-auto max-w-7xl space-y-8 pb-12">
+          <div className="mx-auto max-w-7xl space-y-8 pb-16">
             {/* Header */}
 
-            <section className="flex flex-col justify-between gap-4 pt-5 sm:flex-row sm:items-center">
+            <section className="flex flex-col justify-between gap-5 pt-5 sm:flex-row sm:items-center">
               <div>
                 <div className="mb-3 flex items-center gap-2 text-sm text-app-text-muted">
                   <Link
@@ -474,37 +643,46 @@ const AdminDashboard = () => {
                   <span className="text-app-primary">مدیریت</span>
                 </div>
 
-                <h1 className="text-2xl font-black sm:text-3xl">پنل مدیریت</h1>
+                <h1 className="text-2xl font-black sm:text-3xl">
+                  مرکز مدیریت Ainglish
+                </h1>
 
                 <p className="mt-2 text-sm text-app-text-muted">
-                  مدیریت کاربران و واژگان ثبت‌شده در Ainglish
+                  مدیریت کاربران، مدیران و واژگان پلتفرم
                 </p>
               </div>
 
-              <div className="flex w-fit items-center gap-2 rounded-xl border border-app-success/20 bg-app-success/10 px-4 py-2.5">
-                <span className="h-2 w-2 rounded-full bg-app-success" />
-                <span className="text-sm font-bold text-app-success">
-                  دسترسی مدیر
-                </span>
+              <div className="flex items-center gap-3 rounded-2xl border border-app-border bg-app-surface px-4 py-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-app-primary/10 text-xl">
+                  {isSuperAdmin ? "👑" : "🛡️"}
+                </div>
+
+                <div>
+                  <p className="text-sm font-bold">
+                    {currentUser?.username || "مدیر"}
+                  </p>
+                  <p className="mt-1 text-xs text-app-primary">
+                    {isSuperAdmin ? "مدیر ارشد" : "مدیر سیستم"}
+                  </p>
+                </div>
               </div>
             </section>
 
-            {/* Notifications */}
+            {/* Notice */}
 
             {notice && (
               <div
-                className={`flex items-center justify-between gap-3 rounded-xl border p-4 text-sm ${
+                className={`flex items-center justify-between gap-3 rounded-2xl border p-4 text-sm ${
                   notice.type === "success"
                     ? "border-app-success/20 bg-app-success/10 text-app-success"
                     : "border-app-danger/20 bg-app-danger/10 text-app-danger"
                 }`}
               >
                 <p>{notice.message}</p>
-
                 <button
                   type="button"
                   onClick={clearNotice}
-                  className="shrink-0 text-lg"
+                  className="text-xl"
                   aria-label="بستن پیام"
                 >
                   ×
@@ -512,121 +690,75 @@ const AdminDashboard = () => {
               </div>
             )}
 
-            {/* Overview */}
+            {/* Statistics */}
 
             <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="rounded-2xl border border-app-border bg-app-surface p-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-app-text-muted">
-                      تعداد کل کاربران
-                    </p>
+              <StatCard
+                title="تعداد کل کاربران"
+                value={loading ? "..." : formatNumber(usersTotal)}
+                description="حساب‌های ثبت‌نام‌شده"
+                icon="👥"
+              />
 
-                    <h2 className="mt-3 text-3xl font-black tabular-nums">
-                      {loading ? "..." : formatNumber(usersTotal)}
-                    </h2>
-
-                    <p className="mt-2 text-xs text-app-text-muted">
-                      کاربران ثبت‌نام‌شده
-                    </p>
-                  </div>
-
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-app-primary/10 text-2xl">
-                    👥
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-app-border bg-app-surface p-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-app-text-muted">
-                      تعداد کل واژگان
-                    </p>
-
-                    <h2 className="mt-3 text-3xl font-black tabular-nums">
-                      {loading ? "..." : formatNumber(wordsTotal)}
-                    </h2>
-
-                    <p className="mt-2 text-xs text-app-text-muted">
-                      واژه‌های ثبت‌شده توسط کاربران
-                    </p>
-                  </div>
-
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-app-primary/10 text-2xl">
-                    📚
-                  </div>
-                </div>
-              </div>
+              <StatCard
+                title="تعداد کل واژگان"
+                value={loading ? "..." : formatNumber(wordsTotal)}
+                description="واژه‌های ذخیره‌شده در پلتفرم"
+                icon="📚"
+              />
             </section>
 
-            {/* Users Management */}
+            {/* Users */}
 
             <section
               id="admin-users"
               className="overflow-hidden rounded-3xl border border-app-border bg-app-surface"
             >
-              <div className="border-b border-app-border p-5 sm:p-6">
-                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-app-primary/10 text-xl">
-                      👥
-                    </div>
-
-                    <div>
-                      <h2 className="font-black">مدیریت کاربران</h2>
-                      <p className="mt-1 text-xs text-app-text-muted">
-                        مشاهده، جستجو و مدیریت حساب کاربران
-                      </p>
-                    </div>
-                  </div>
-
-                  <span className="w-fit rounded-lg bg-app-primary/10 px-3 py-1.5 text-xs font-bold text-app-primary">
-                    {formatNumber(usersTotal)} کاربر
-                  </span>
+              <div className="flex flex-col justify-between gap-3 border-b border-app-border p-5 sm:flex-row sm:items-center sm:p-6">
+                <div>
+                  <h2 className="text-lg font-black">مدیریت کاربران</h2>
+                  <p className="mt-1 text-xs text-app-text-muted">
+                    اطلاعات حساب‌ها، وضعیت حضور و سطح دسترسی
+                  </p>
                 </div>
+
+                <span className="w-fit rounded-xl bg-app-primary/10 px-3 py-2 text-xs font-bold text-app-primary">
+                  {formatNumber(usersTotal)} حساب
+                </span>
               </div>
 
-              <div className="space-y-4 p-5 sm:p-6">
+              <div className="space-y-5 p-5 sm:p-6">
                 <form
                   onSubmit={handleUserSearch}
                   className="flex flex-col gap-3 sm:flex-row"
                 >
-                  <div className="relative flex-1">
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-app-text-muted">
-                      ⌕
-                    </span>
-
-                    <input
-                      type="text"
-                      value={userSearchInput}
-                      onChange={(event) =>
-                        setUserSearchInput(event.target.value)
-                      }
-                      placeholder="جستجو با نام کاربری یا ایمیل..."
-                      className={`${inputClass} pr-11`}
-                    />
-                  </div>
+                  <input
+                    value={userSearchInput}
+                    onChange={(event) => setUserSearchInput(event.target.value)}
+                    placeholder="جستجو با نام کاربری، ایمیل یا موبایل..."
+                    className={inputClass}
+                  />
 
                   <button
                     type="submit"
                     disabled={usersLoading}
                     className={buttonClass}
                   >
-                    جستجو
+                    {usersLoading ? "..." : "جستجو"}
                   </button>
                 </form>
 
-                <div className="overflow-x-auto rounded-xl border border-app-border">
-                  <table className="w-full min-w-[760px] text-right text-sm">
+                <div className="overflow-x-auto rounded-2xl border border-app-border">
+                  <table className="w-full min-w-[1050px] text-right text-sm">
                     <thead className="bg-app-background text-xs text-app-text-muted">
                       <tr>
-                        <th className="px-5 py-4 font-bold">شناسه</th>
-                        <th className="px-5 py-4 font-bold">نام کاربری</th>
-                        <th className="px-5 py-4 font-bold">ایمیل</th>
-                        <th className="px-5 py-4 font-bold">نقش</th>
-                        <th className="px-5 py-4 font-bold">تعداد واژگان</th>
-                        <th className="px-5 py-4 font-bold">عملیات</th>
+                        <th className="px-4 py-4">کاربر</th>
+                        <th className="px-4 py-4">اطلاعات تماس</th>
+                        <th className="px-4 py-4">نقش</th>
+                        <th className="px-4 py-4">وضعیت</th>
+                        <th className="px-4 py-4">تاریخ ثبت‌نام</th>
+                        <th className="px-4 py-4">واژگان</th>
+                        <th className="px-4 py-4">عملیات</th>
                       </tr>
                     </thead>
 
@@ -634,82 +766,86 @@ const AdminDashboard = () => {
                       {usersLoading ? (
                         <tr>
                           <td
-                            colSpan="6"
-                            className="px-5 py-10 text-center text-app-text-muted"
+                            colSpan="7"
+                            className="p-10 text-center text-app-text-muted"
                           >
-                            در حال دریافت کاربران...
+                            در حال دریافت اطلاعات کاربران...
                           </td>
                         </tr>
                       ) : users.length === 0 ? (
                         <tr>
                           <td
-                            colSpan="6"
-                            className="px-5 py-10 text-center text-app-text-muted"
+                            colSpan="7"
+                            className="p-10 text-center text-app-text-muted"
                           >
                             کاربری پیدا نشد.
                           </td>
                         </tr>
                       ) : (
-                        users.map((user) => (
+                        users.map((item) => (
                           <tr
-                            key={user.id}
-                            className="transition hover:bg-app-surface-hover/60"
+                            key={item.id}
+                            className="transition hover:bg-app-background/70"
                           >
-                            <td className="px-5 py-4 text-app-text-muted">
-                              #{user.id}
+                            <td className="px-4 py-4">
+                              <p className="font-bold">{item.username}</p>
+                              <p className="mt-1 text-xs text-app-text-muted">
+                                شناسه #{item.id}
+                              </p>
                             </td>
 
-                            <td className="px-5 py-4 font-bold">
-                              {user.username}
+                            <td className="px-4 py-4">
+                              <p dir="ltr" className="text-left text-xs">
+                                {item.email}
+                              </p>
+                              <p
+                                dir="ltr"
+                                className="mt-2 text-left text-xs text-app-text-muted"
+                              >
+                                {item.phone || "شماره ثبت نشده"}
+                              </p>
                             </td>
 
-                            <td
-                              className="px-5 py-4 text-app-text-muted"
-                              dir="ltr"
-                            >
-                              {user.email}
+                            <td className="px-4 py-4">
+                              <RoleBadge role={item.role} />
                             </td>
 
-                            <td className="px-5 py-4">
-                              {user.is_admin ? (
-                                <span className="rounded-lg bg-app-primary/10 px-2.5 py-1 text-xs font-bold text-app-primary">
-                                  مدیر
-                                </span>
-                              ) : (
-                                <span className="rounded-lg bg-app-background px-2.5 py-1 text-xs font-semibold text-app-text-muted">
-                                  کاربر
-                                </span>
-                              )}
+                            <td className="px-4 py-4">
+                              <OnlineBadge online={item.is_online} />
                             </td>
 
-                            <td className="px-5 py-4 font-semibold tabular-nums">
-                              {formatNumber(user.words_count)}
+                            <td className="px-4 py-4 text-xs text-app-text-muted">
+                              {formatDate(item.created_at)}
                             </td>
 
-                            <td className="px-5 py-4">
+                            <td className="px-4 py-4 font-bold tabular-nums">
+                              {formatNumber(item.words_count)}
+                            </td>
+
+                            <td className="px-4 py-4">
                               <div className="flex items-center gap-2">
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    fetchUserDetails(user.id);
+                                    fetchUserDetails(item.id);
                                     document
                                       .getElementById("user-details")
-                                      ?.scrollIntoView({
-                                        behavior: "smooth",
-                                      });
+                                      ?.scrollIntoView({ behavior: "smooth" });
                                   }}
                                   className="rounded-lg bg-app-primary/10 px-3 py-2 text-xs font-bold text-app-primary transition hover:bg-app-primary/20"
                                 >
-                                  واژگان
+                                  جزئیات
                                 </button>
 
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteUser(user)}
-                                  className="rounded-lg bg-app-danger/10 px-3 py-2 text-xs font-bold text-app-danger transition hover:bg-app-danger/20"
-                                >
-                                  حذف
-                                </button>
+                                {canDeleteUser(item) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteUser(item)}
+                                    className="rounded-lg bg-app-danger/10 px-3 py-2 text-xs font-bold text-app-danger transition hover:bg-app-danger/20"
+                                  >
+                                    حذف
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -734,31 +870,20 @@ const AdminDashboard = () => {
               id="user-details"
               className="rounded-3xl border border-app-border bg-app-surface p-5 sm:p-6"
             >
-              <div className="mb-5 flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-app-primary/10 text-xl">
-                  👤
-                </div>
-
-                <div>
-                  <h2 className="font-black">جزئیات کاربر</h2>
-                  <p className="mt-1 text-xs text-app-text-muted">
-                    اطلاعات کاربر و واژگان ثبت‌شده توسط او
-                  </p>
-                </div>
+              <div className="mb-5">
+                <h2 className="text-lg font-black">جزئیات حساب کاربر</h2>
+                <p className="mt-1 text-xs text-app-text-muted">
+                  مشاهده اطلاعات کامل و واژگان کاربر انتخاب‌شده
+                </p>
               </div>
 
               {selectedUserLoading ? (
                 <p className="py-8 text-center text-sm text-app-text-muted">
-                  در حال دریافت اطلاعات کاربر...
+                  در حال دریافت اطلاعات...
                 </p>
               ) : selectedUser ? (
                 <>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <div className="rounded-xl bg-app-background p-4">
-                      <p className="text-xs text-app-text-muted">شناسه کاربر</p>
-                      <p className="mt-2 font-bold">#{selectedUser.id}</p>
-                    </div>
-
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     <div className="rounded-xl bg-app-background p-4">
                       <p className="text-xs text-app-text-muted">نام کاربری</p>
                       <p className="mt-2 font-bold">{selectedUser.username}</p>
@@ -766,8 +891,52 @@ const AdminDashboard = () => {
 
                     <div className="rounded-xl bg-app-background p-4">
                       <p className="text-xs text-app-text-muted">ایمیل</p>
-                      <p className="mt-2 break-all text-sm font-bold" dir="ltr">
+                      <p
+                        dir="ltr"
+                        className="mt-2 break-all text-left text-sm font-bold"
+                      >
                         {selectedUser.email}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl bg-app-background p-4">
+                      <p className="text-xs text-app-text-muted">
+                        شماره موبایل
+                      </p>
+                      <p dir="ltr" className="mt-2 text-left font-bold">
+                        {selectedUser.phone || "ثبت نشده"}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl bg-app-background p-4">
+                      <p className="text-xs text-app-text-muted">نقش</p>
+                      <div className="mt-2">
+                        <RoleBadge role={selectedUser.role} />
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl bg-app-background p-4">
+                      <p className="text-xs text-app-text-muted">وضعیت حضور</p>
+                      <div className="mt-2">
+                        <OnlineBadge online={selectedUser.is_online} />
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl bg-app-background p-4">
+                      <p className="text-xs text-app-text-muted">
+                        تاریخ ثبت‌نام
+                      </p>
+                      <p className="mt-2 text-sm font-bold">
+                        {formatDate(selectedUser.created_at)}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl bg-app-background p-4">
+                      <p className="text-xs text-app-text-muted">
+                        آخرین فعالیت
+                      </p>
+                      <p className="mt-2 text-sm font-bold">
+                        {formatDate(selectedUser.last_seen_at)}
                       </p>
                     </div>
 
@@ -781,35 +950,27 @@ const AdminDashboard = () => {
                     </div>
                   </div>
 
-                  <div className="mt-6 overflow-hidden rounded-xl border border-app-border">
-                    <div className="flex flex-col justify-between gap-2 border-b border-app-border bg-app-background p-4 sm:flex-row sm:items-center">
-                      <h3 className="text-sm font-bold">واژگان این کاربر</h3>
-
-                      <span className="text-xs text-app-text-muted">
-                        User ID: {selectedUser.id}
-                      </span>
+                  <div className="mt-6 overflow-hidden rounded-2xl border border-app-border">
+                    <div className="border-b border-app-border bg-app-background p-4">
+                      <h3 className="font-bold">واژگان ثبت‌شده</h3>
                     </div>
 
-                    <div className="border-b border-app-border p-4">
-                      <form
-                        onSubmit={handleSelectedUserSearch}
-                        className="flex flex-col gap-2 sm:flex-row"
-                      >
-                        <input
-                          type="text"
-                          value={selectedUserSearch}
-                          onChange={(event) =>
-                            setSelectedUserSearch(event.target.value)
-                          }
-                          placeholder="جستجو در واژگان این کاربر..."
-                          className={inputClass}
-                        />
-
-                        <button type="submit" className={buttonClass}>
-                          جستجو
-                        </button>
-                      </form>
-                    </div>
+                    <form
+                      onSubmit={handleSelectedUserSearch}
+                      className="flex flex-col gap-2 border-b border-app-border p-4 sm:flex-row"
+                    >
+                      <input
+                        value={selectedUserSearch}
+                        onChange={(event) =>
+                          setSelectedUserSearch(event.target.value)
+                        }
+                        placeholder="جستجو در واژگان این کاربر..."
+                        className={inputClass}
+                      />
+                      <button type="submit" className={buttonClass}>
+                        جستجو
+                      </button>
+                    </form>
 
                     <div className="divide-y divide-app-border">
                       {selectedUserLoading ? (
@@ -827,7 +988,7 @@ const AdminDashboard = () => {
                             className="flex flex-wrap items-center justify-between gap-4 p-4"
                           >
                             <div className="min-w-0 flex-1">
-                              <p className="break-words font-bold" dir="ltr">
+                              <p dir="ltr" className="break-words font-bold">
                                 {word.word}
                               </p>
                               <p className="mt-1 text-sm text-app-text-muted">
@@ -839,7 +1000,6 @@ const AdminDashboard = () => {
                               <span className="text-xs text-app-text-muted">
                                 #{word.id}
                               </span>
-
                               <button
                                 type="button"
                                 onClick={() => startWordEdit(word)}
@@ -847,7 +1007,6 @@ const AdminDashboard = () => {
                               >
                                 ویرایش
                               </button>
-
                               <button
                                 type="button"
                                 onClick={() => handleDeleteWord(word)}
@@ -876,11 +1035,8 @@ const AdminDashboard = () => {
                   </div>
                 </>
               ) : (
-                <div className="rounded-xl bg-app-background p-8 text-center">
-                  <p className="text-sm text-app-text-muted">
-                    برای مشاهده جزئیات و واژگان، یک کاربر را از جدول بالا انتخاب
-                    کنید.
-                  </p>
+                <div className="rounded-xl bg-app-background p-8 text-center text-sm text-app-text-muted">
+                  برای مشاهده جزئیات، یک کاربر را از جدول انتخاب کنید.
                 </div>
               )}
             </section>
@@ -892,33 +1048,18 @@ const AdminDashboard = () => {
               className="overflow-hidden rounded-3xl border border-app-border bg-app-surface"
             >
               <div className="border-b border-app-border p-5 sm:p-6">
-                <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-app-primary/10 text-xl">
-                      📚
-                    </div>
-
-                    <div>
-                      <h2 className="font-black">مدیریت واژگان</h2>
-                      <p className="mt-1 text-xs text-app-text-muted">
-                        مشاهده، جستجو، ویرایش و حذف واژه‌های ثبت‌شده
-                      </p>
-                    </div>
-                  </div>
-
-                  <span className="w-fit rounded-lg bg-app-primary/10 px-3 py-1.5 text-xs font-bold text-app-primary">
-                    {formatNumber(wordsTotal)} واژه
-                  </span>
-                </div>
+                <h2 className="text-lg font-black">مدیریت واژگان</h2>
+                <p className="mt-1 text-xs text-app-text-muted">
+                  جستجو، ویرایش و حذف واژگان ذخیره‌شده
+                </p>
               </div>
 
-              <div className="space-y-4 p-5 sm:p-6">
+              <div className="space-y-5 p-5 sm:p-6">
                 <form
                   onSubmit={handleWordSearch}
                   className="grid grid-cols-1 gap-3 md:grid-cols-3"
                 >
                   <input
-                    type="text"
                     value={wordSearchInput}
                     onChange={(event) => setWordSearchInput(event.target.value)}
                     placeholder="جستجوی واژه یا معنی..."
@@ -943,15 +1084,15 @@ const AdminDashboard = () => {
                   </button>
                 </form>
 
-                <div className="overflow-x-auto rounded-xl border border-app-border">
+                <div className="overflow-x-auto rounded-2xl border border-app-border">
                   <table className="w-full min-w-[680px] text-right text-sm">
                     <thead className="bg-app-background text-xs text-app-text-muted">
                       <tr>
-                        <th className="px-5 py-4 font-bold">شناسه</th>
-                        <th className="px-5 py-4 font-bold">واژه</th>
-                        <th className="px-5 py-4 font-bold">معنی</th>
-                        <th className="px-5 py-4 font-bold">شناسه کاربر</th>
-                        <th className="px-5 py-4 font-bold">عملیات</th>
+                        <th className="px-4 py-4">شناسه</th>
+                        <th className="px-4 py-4">واژه</th>
+                        <th className="px-4 py-4">معنی</th>
+                        <th className="px-4 py-4">شناسه کاربر</th>
+                        <th className="px-4 py-4">عملیات</th>
                       </tr>
                     </thead>
 
@@ -960,7 +1101,7 @@ const AdminDashboard = () => {
                         <tr>
                           <td
                             colSpan="5"
-                            className="px-5 py-10 text-center text-app-text-muted"
+                            className="p-10 text-center text-app-text-muted"
                           >
                             در حال دریافت واژگان...
                           </td>
@@ -969,7 +1110,7 @@ const AdminDashboard = () => {
                         <tr>
                           <td
                             colSpan="5"
-                            className="px-5 py-10 text-center text-app-text-muted"
+                            className="p-10 text-center text-app-text-muted"
                           >
                             واژه‌ای پیدا نشد.
                           </td>
@@ -978,36 +1119,31 @@ const AdminDashboard = () => {
                         words.map((word) => (
                           <tr
                             key={word.id}
-                            className="transition hover:bg-app-surface-hover/60"
+                            className="hover:bg-app-background/70"
                           >
-                            <td className="px-5 py-4 text-app-text-muted">
+                            <td className="px-4 py-4 text-app-text-muted">
                               #{word.id}
                             </td>
-
-                            <td className="px-5 py-4 font-bold" dir="ltr">
+                            <td dir="ltr" className="px-4 py-4 font-bold">
                               {word.word}
                             </td>
-
-                            <td className="px-5 py-4">{word.meaning}</td>
-
-                            <td className="px-5 py-4 text-app-text-muted">
+                            <td className="px-4 py-4">{word.meaning}</td>
+                            <td className="px-4 py-4 text-app-text-muted">
                               #{word.user_id ?? "-"}
                             </td>
-
-                            <td className="px-5 py-4">
-                              <div className="flex items-center gap-2">
+                            <td className="px-4 py-4">
+                              <div className="flex gap-2">
                                 <button
                                   type="button"
                                   onClick={() => startWordEdit(word)}
-                                  className="rounded-lg bg-app-primary/10 px-3 py-2 text-xs font-bold text-app-primary transition hover:bg-app-primary/20"
+                                  className="rounded-lg bg-app-primary/10 px-3 py-2 text-xs font-bold text-app-primary"
                                 >
                                   ویرایش
                                 </button>
-
                                 <button
                                   type="button"
                                   onClick={() => handleDeleteWord(word)}
-                                  className="rounded-lg bg-app-danger/10 px-3 py-2 text-xs font-bold text-app-danger transition hover:bg-app-danger/20"
+                                  className="rounded-lg bg-app-danger/10 px-3 py-2 text-xs font-bold text-app-danger"
                                 >
                                   حذف
                                 </button>
@@ -1035,62 +1171,40 @@ const AdminDashboard = () => {
               id="edit-word-section"
               className="rounded-3xl border border-app-border bg-app-surface p-5 sm:p-6"
             >
-              <div className="mb-5 flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-app-primary/10 text-xl">
-                  ✏️
-                </div>
-
-                <div>
-                  <h2 className="font-black">ویرایش واژه</h2>
-                  <p className="mt-1 text-xs text-app-text-muted">
-                    تغییر واژه یا معنی آن
-                  </p>
-                </div>
-              </div>
+              <h2 className="text-lg font-black">ویرایش واژه</h2>
+              <p className="mt-1 text-xs text-app-text-muted">
+                اصلاح واژه یا معنی آن
+              </p>
 
               {editingWord ? (
-                <form onSubmit={handleUpdateWord}>
-                  <div className="mb-4 flex items-center justify-between rounded-xl bg-app-background p-3">
-                    <span className="text-sm text-app-text-muted">
-                      در حال ویرایش واژه شماره
-                    </span>
-                    <span className="font-bold">#{editingWord.id}</span>
+                <form onSubmit={handleUpdateWord} className="mt-5 space-y-4">
+                  <div className="rounded-xl bg-app-background p-3 text-sm">
+                    در حال ویرایش واژه شماره #{editingWord.id}
                   </div>
 
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <label className="text-sm font-bold">واژه انگلیسی</label>
+                    <input
+                      dir="ltr"
+                      maxLength={10000}
+                      value={editWordValue}
+                      onChange={(event) => setEditWordValue(event.target.value)}
+                      placeholder="English word"
+                      className={`${inputClass} text-left`}
+                    />
 
-                      <input
-                        type="text"
-                        dir="ltr"
-                        maxLength={10000}
-                        value={editWordValue}
-                        onChange={(event) =>
-                          setEditWordValue(event.target.value)
-                        }
-                        className={`${inputClass} text-left`}
-                        placeholder="New word"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-bold">معنی فارسی</label>
-
-                      <textarea
-                        rows={2}
-                        maxLength={10000}
-                        value={editMeaningValue}
-                        onChange={(event) =>
-                          setEditMeaningValue(event.target.value)
-                        }
-                        placeholder="معنی جدید واژه..."
-                        className={`${inputClass} resize-none`}
-                      />
-                    </div>
+                    <textarea
+                      rows={2}
+                      maxLength={10000}
+                      value={editMeaningValue}
+                      onChange={(event) =>
+                        setEditMeaningValue(event.target.value)
+                      }
+                      placeholder="معنی فارسی"
+                      className={inputClass}
+                    />
                   </div>
 
-                  <div className="mt-5 flex flex-wrap justify-end gap-3">
+                  <div className="flex justify-end gap-3">
                     <button
                       type="button"
                       onClick={cancelWordEdit}
@@ -1098,7 +1212,6 @@ const AdminDashboard = () => {
                     >
                       انصراف
                     </button>
-
                     <button
                       type="submit"
                       disabled={savingWord}
@@ -1109,36 +1222,25 @@ const AdminDashboard = () => {
                   </div>
                 </form>
               ) : (
-                <div className="rounded-xl bg-app-background p-6 text-center">
-                  <p className="text-sm text-app-text-muted">
-                    برای ویرایش، از جدول مدیریت واژگان روی دکمه ویرایش کلیک
-                    کنید.
-                  </p>
+                <div className="mt-5 rounded-xl bg-app-background p-6 text-center text-sm text-app-text-muted">
+                  برای ویرایش، از جدول مدیریت واژگان گزینه ویرایش را انتخاب
+                  کنید.
                 </div>
               )}
             </section>
 
-            {/* Reset Password */}
+            {/* Password Reset */}
 
             <section className="rounded-3xl border border-app-border bg-app-surface p-5 sm:p-6">
-              <div className="mb-5 flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-app-warning/10 text-xl">
-                  🔑
-                </div>
+              <h2 className="text-lg font-black">تغییر رمز عبور</h2>
+              <p className="mt-1 text-xs text-app-text-muted">
+                تعیین رمز عبور جدید برای حساب کاربری
+              </p>
 
-                <div>
-                  <h2 className="font-black">تغییر رمز عبور کاربر</h2>
-                  <p className="mt-1 text-xs text-app-text-muted">
-                    تعیین رمز عبور جدید برای حساب یک کاربر
-                  </p>
-                </div>
-              </div>
-
-              <form onSubmit={handleResetPassword}>
+              <form onSubmit={handleResetPassword} className="mt-5 space-y-4">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <label className="text-sm font-bold">شناسه کاربر</label>
-
                     <input
                       type="number"
                       min="1"
@@ -1154,7 +1256,6 @@ const AdminDashboard = () => {
 
                   <div className="space-y-2">
                     <label className="text-sm font-bold">رمز عبور جدید</label>
-
                     <input
                       type="password"
                       required
@@ -1162,36 +1263,137 @@ const AdminDashboard = () => {
                       maxLength={128}
                       value={newPassword}
                       onChange={(event) => setNewPassword(event.target.value)}
-                      placeholder="رمز عبور جدید را وارد کنید"
+                      placeholder="رمز عبور جدید"
                       className={inputClass}
                     />
-
-                    <p className="text-xs text-app-text-muted">
-                      حداقل ۸ و حداکثر ۱۲۸ کاراکتر
-                    </p>
                   </div>
                 </div>
 
-                <div className="mt-5 rounded-xl border border-app-warning/20 bg-app-warning/5 p-4">
-                  <p className="text-xs leading-6 text-app-text-muted">
-                    با تغییر رمز عبور، توکن‌های ورود قبلی کاربر اعتبار خود را از
-                    دست می‌دهند و کاربر باید مجدداً وارد حساب شود.
-                  </p>
+                <div className="rounded-xl border border-app-warning/20 bg-app-warning/5 p-4 text-xs leading-6 text-app-text-muted">
+                  {isSuperAdmin
+                    ? "مدیر ارشد می‌تواند رمز کاربران عادی و مدیران را تغییر دهد؛ حساب مدیر ارشد قابل تغییر نیست."
+                    : "مدیر معمولی فقط می‌تواند رمز کاربران عادی را تغییر دهد و اجازه تغییر رمز مدیران را ندارد."}{" "}
+                  پس از تغییر رمز، نشست‌های قبلی کاربر باطل می‌شوند.
                 </div>
 
-                <div className="mt-5 flex justify-end">
+                <div className="flex justify-end">
                   <button
                     type="submit"
                     disabled={resettingPassword}
                     className={buttonClass}
                   >
-                    {resettingPassword
-                      ? "در حال تغییر رمز..."
-                      : "تغییر رمز عبور"}
+                    {resettingPassword ? "در حال تغییر..." : "تغییر رمز عبور"}
                   </button>
                 </div>
               </form>
             </section>
+
+            {/* Create Manager - Super Admin Only */}
+
+            {isSuperAdmin && (
+              <section
+                id="create-manager"
+                className="overflow-hidden rounded-3xl border border-app-primary/20 bg-app-surface"
+              >
+                <div className="flex items-center gap-4 border-b border-app-border bg-app-primary/5 p-5 sm:p-6">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-app-primary/10 text-2xl">
+                    👑
+                  </div>
+
+                  <div>
+                    <h2 className="text-lg font-black">افزودن مدیر جدید</h2>
+                    <p className="mt-1 text-xs text-app-text-muted">
+                      این قابلیت فقط در دسترس مدیر ارشد است.
+                    </p>
+                  </div>
+                </div>
+
+                <form
+                  onSubmit={handleCreateManager}
+                  className="space-y-5 p-5 sm:p-6"
+                >
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <label className="text-sm font-bold">نام کاربری</label>
+                      <input
+                        name="username"
+                        value={managerForm.username}
+                        onChange={handleManagerInput}
+                        minLength={3}
+                        maxLength={50}
+                        required
+                        placeholder="مثلاً manager01"
+                        className={inputClass}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-bold">ایمیل</label>
+                      <input
+                        type="email"
+                        name="email"
+                        value={managerForm.email}
+                        onChange={handleManagerInput}
+                        required
+                        placeholder="manager@example.com"
+                        dir="ltr"
+                        className={inputClass}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-bold">شماره موبایل</label>
+                      <input
+                        type="tel"
+                        name="phone"
+                        value={managerForm.phone}
+                        onChange={handleManagerInput}
+                        required
+                        maxLength={11}
+                        minLength={11}
+                        pattern="09[0-9]{9}"
+                        placeholder="09123456789"
+                        dir="ltr"
+                        className={inputClass}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-bold">رمز عبور</label>
+                      <input
+                        type="password"
+                        name="password"
+                        value={managerForm.password}
+                        onChange={handleManagerInput}
+                        required
+                        minLength={8}
+                        maxLength={128}
+                        placeholder="حداقل ۸ کاراکتر"
+                        className={inputClass}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-app-primary/20 bg-app-primary/5 p-4 text-xs leading-6 text-app-text-muted">
+                    حساب ساخته‌شده با نقش «مدیر» ایجاد می‌شود و به امکانات
+                    مدیریتی دسترسی خواهد داشت؛ اما نمی‌تواند مدیر دیگری بسازد یا
+                    حساب مدیران را حذف و رمز آن‌ها را تغییر دهد.
+                  </div>
+
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={creatingManager}
+                      className={buttonClass}
+                    >
+                      {creatingManager
+                        ? "در حال ساخت حساب..."
+                        : "ساخت حساب مدیر"}
+                    </button>
+                  </div>
+                </form>
+              </section>
+            )}
           </div>
         </div>
       </div>
