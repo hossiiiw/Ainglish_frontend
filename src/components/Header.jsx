@@ -1,4 +1,3 @@
-
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
@@ -14,22 +13,13 @@ function Header() {
   return (
     <header className="sticky top-0 z-50 border-b border-app-border/70 bg-app-background/90 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
-
         <Link to="/" className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-app-primary text-white shadow-lg shadow-app-primary/25">
-            <svg viewBox="0 0 24 24" fill="none" className="h-7 w-7">
-              <path
-                d="M4 5.5C4 4.67 4.67 4 5.5 4H11V20H6C4.9 20 4 19.1 4 18V5.5Z"
-                stroke="currentColor"
-                strokeWidth="1.8"
-              />
-              <path
-                d="M20 5.5C20 4.67 19.33 4 18.5 4H13V20H18C19.1 20 20 19.1 20 18V5.5Z"
-                stroke="currentColor"
-                strokeWidth="1.8"
-              />
-              <path d="M12 7V20" stroke="currentColor" strokeWidth="1.8" />
-            </svg>
+            <img
+              src="./../../public/logo.png.png"
+              alt="Ainglish"
+              className="h-12 w-12 rounded-xl object-contain"
+            />
           </div>
 
           <div>
@@ -97,7 +87,6 @@ function Header() {
             </>
           )}
         </div>
-
       </div>
     </header>
   );

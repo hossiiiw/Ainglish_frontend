@@ -117,7 +117,6 @@ export default function Landing() {
                   className="flex items-center gap-2 rounded-2xl border border-app-border bg-app-surface px-6 py-4 font-bold transition hover:border-app-primary hover:text-app-primary"
                 >
                   آشنایی با امکانات
-                  <span>⌄</span>
                 </a>
               </div>
 
@@ -358,7 +357,11 @@ export default function Landing() {
             <div className="lg:col-span-2">
               <div className="mb-4 flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-app-primary text-xl text-white">
-                  ▤
+                  <img
+                    src="./../../public/logo.png.png"
+                    alt="Ainglish"
+                    className="h-12 w-12 rounded-xl object-contain"
+                  />
                 </div>
                 <h2 className="text-2xl font-black">Ainglish</h2>
               </div>

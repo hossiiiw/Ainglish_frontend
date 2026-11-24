@@ -442,273 +442,236 @@ const Vocabulary = () => {
               </div>
             </section>
 
-            {/* Vocabulary Section */}
-            <section className="space-y-5">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <h2 className="text-xl font-black">
-                    مجموعه واژگان من
-                  </h2>
-                  <p className="mt-2 text-sm text-app-text-muted">
-                    واژه‌ها و جمله‌هایی که برای یادگیری ذخیره کرده‌ای.
-                  </p>
-                </div>
+           
+{/* Vocabulary Section */}
+<section className="space-y-4">
 
-                <span className="text-xs font-semibold text-app-text-muted">
-                  {formatCount(filteredWords.length)} نتیجه
-                </span>
-              </div>
+  <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+      <h2 className="text-lg font-bold">واژگان من</h2>
+      <p className="mt-1 text-xs text-app-text-muted">
+        مدیریت واژه‌ها و جمله‌های ذخیره‌شده
+      </p>
+    </div>
 
-              {/* Search */}
-              <div className="rounded-2xl border border-app-border bg-app-surface p-4">
-                <div className="relative">
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-lg text-app-text-muted">
-                    ⌕
-                  </span>
+    <span className="text-xs text-app-text-muted">
+      {formatCount(filteredWords.length)} مورد
+    </span>
+  </div>
 
-                  <input
-                    type="search"
-                    value={search}
-                    onChange={(e) => handleSearch(e.target.value)}
-                    placeholder="جست‌وجوی واژه، جمله یا معنی..."
-                    autoComplete="off"
-                    className="w-full rounded-xl border border-app-border bg-app-input py-3 pr-11 pl-12 text-sm text-app-text outline-none transition placeholder:text-app-text-muted focus:border-app-primary focus:ring-4 focus:ring-app-primary/10"
-                  />
+  {/* Search */}
+  <div className="rounded-xl border border-app-border bg-app-surface p-3">
+    <div className="relative">
+      <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-base text-app-text-muted">
+        ⌕
+      </span>
 
-                  {search && (
-                    <button
-                      type="button"
-                      onClick={() => handleSearch("")}
-                      aria-label="پاک کردن جستجو"
-                      className="absolute left-4 top-1/2 -translate-y-1/2 rounded-lg p-1 text-app-text-muted transition hover:bg-app-surface-hover hover:text-app-text"
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
+      <input
+        type="search"
+        value={search}
+        onChange={(e) => handleSearch(e.target.value)}
+        placeholder="جست‌وجوی واژه یا معنی..."
+        autoComplete="off"
+        className="w-full rounded-lg border border-app-border bg-app-input py-2.5 pr-10 pl-10 text-sm text-app-text outline-none transition placeholder:text-app-text-muted focus:border-app-primary focus:ring-2 focus:ring-app-primary/10"
+      />
 
-                {search.trim() && (
-                  <p className="mt-3 text-xs text-app-text-muted">
-                    {filteredWords.length > 0
-                      ? `${formatCount(filteredWords.length)} مورد مطابق عبارت «${search.trim()}» پیدا شد.`
-                      : "موردی مطابق عبارت جستجو پیدا نشد."}
-                  </p>
-                )}
-              </div>
+      {search && (
+        <button
+          type="button"
+          onClick={() => handleSearch("")}
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-lg text-app-text-muted hover:text-app-text"
+        >
+          ×
+        </button>
+      )}
+    </div>
+  </div>
 
-              {/* Loading */}
-              {loading ? (
-                <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-app-border bg-app-surface py-16">
-                  <div className="h-9 w-9 animate-spin rounded-full border-4 border-app-primary/20 border-t-app-primary" />
-                  <p className="text-sm text-app-text-muted">
-                    در حال دریافت واژگان شما...
-                  </p>
-                </div>
-              ) : currentWords.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-app-border bg-app-surface px-4 py-14 text-center">
-                  <div className="mb-4 text-5xl text-app-text-muted">
-                    ◈
+  {/* Loading */}
+  {loading ? (
+    <div className="flex items-center justify-center gap-3 rounded-xl border border-app-border bg-app-surface py-12">
+      <div className="h-5 w-5 animate-spin rounded-full border-2 border-app-primary/20 border-t-app-primary" />
+      <span className="text-xs text-app-text-muted">
+        در حال دریافت واژگان...
+      </span>
+    </div>
+  ) : currentWords.length === 0 ? (
+    <div className="rounded-xl border border-dashed border-app-border bg-app-surface px-4 py-12 text-center">
+      <p className="text-3xl text-app-text-muted">◈</p>
+
+      <h3 className="mt-3 text-sm font-bold">
+        {search.trim()
+          ? "موردی پیدا نشد"
+          : "هنوز واژه‌ای ذخیره نکرده‌ای"}
+      </h3>
+
+      <p className="mt-2 text-xs text-app-text-muted">
+        {search.trim()
+          ? "عبارت جست‌وجو را تغییر بده."
+          : "اولین واژه خودت را به مجموعه اضافه کن."}
+      </p>
+
+      {!search.trim() && (
+        <Link
+          to="/add-vocab"
+          className="mt-4 inline-flex rounded-lg bg-app-primary px-4 py-2.5 text-xs font-bold text-white transition hover:bg-app-primary-hover"
+        >
+          افزودن واژه جدید
+        </Link>
+      )}
+    </div>
+  ) : (
+    <>
+      {/* Vocabulary List */}
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+        {currentWords.map((item) => {
+          const isSentence = isLongText(item.word);
+
+          return (
+            <article
+              key={item.id}
+              className="min-w-0 rounded-xl border border-app-border bg-app-surface p-4 transition-colors hover:border-app-primary/40"
+            >
+              {/* Card Header */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="mb-2 flex items-center gap-2">
+                    <span className="rounded-md bg-app-primary/10 px-2 py-1 text-[10px] font-semibold text-app-primary">
+                      {isSentence ? "جمله" : "واژه"}
+                    </span>
                   </div>
 
-                  <h3 className="font-bold">
-                    {search.trim()
-                      ? "نتیجه‌ای پیدا نشد"
-                      : "هنوز واژه‌ای ذخیره نکرده‌ای"}
+                  <h3
+                    dir="auto"
+                    className="break-words text-base font-bold leading-7 text-app-text"
+                  >
+                    {item.word}
                   </h3>
-
-                  <p className="mx-auto mt-2 max-w-md text-sm leading-7 text-app-text-muted">
-                    {search.trim()
-                      ? "عبارت جست‌وجو را تغییر بده و دوباره امتحان کن."
-                      : "از طریق مترجم هوشمند یا فرم افزودن واژه، اولین مورد را به مجموعه خود اضافه کن."}
-                  </p>
-
-                  {!search.trim() && (
-                    <div className="mt-6 flex flex-wrap justify-center gap-3">
-                      <Link
-                        to="/translator"
-                        className="rounded-xl bg-app-primary px-5 py-3 text-sm font-bold text-white transition hover:bg-app-primary-hover"
-                      >
-                        مترجم هوشمند
-                      </Link>
-
-                      <Link
-                        to="/add-vocab"
-                        className="rounded-xl border border-app-border px-5 py-3 text-sm font-bold text-app-text transition hover:bg-app-surface-hover"
-                      >
-                        افزودن واژه
-                      </Link>
-                    </div>
-                  )}
                 </div>
-              ) : (
-                <>
-                  {/* Vocabulary Cards */}
-                  <div className="grid gap-4 xl:grid-cols-2">
-                    {currentWords.map((item) => {
-                      const isSentence = isLongText(item.word);
 
-                      return (
-                        <article
-                          key={item.id}
-                          className="group relative overflow-hidden rounded-2xl border border-app-border bg-app-surface p-5 transition duration-300 hover:-translate-y-1 hover:border-app-primary/50 hover:shadow-xl hover:shadow-app-primary/5 sm:p-6"
-                        >
-                          <div className="absolute -left-12 -top-12 h-32 w-32 rounded-full bg-app-primary/5 blur-2xl transition group-hover:bg-app-primary/10" />
+                {/* Actions */}
+                <div className="flex shrink-0 items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => openEditModal(item)}
+                    title="ویرایش"
+                    aria-label="ویرایش"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-sm text-app-text-muted transition hover:bg-app-primary/10 hover:text-app-primary"
+                  >
+                    ✎
+                  </button>
 
-                          <div className="relative">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0 flex-1">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="rounded-lg bg-app-primary/10 px-2.5 py-1 text-[10px] font-bold text-app-primary">
-                                    {isSentence
-                                      ? "جمله ذخیره‌شده"
-                                      : "واژه ذخیره‌شده"}
-                                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(item.id)}
+                    disabled={deletingId === item.id}
+                    title="حذف"
+                    aria-label="حذف"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-base text-app-text-muted transition hover:bg-app-danger/10 hover:text-app-danger disabled:opacity-50"
+                  >
+                    {deletingId === item.id ? "..." : "×"}
+                  </button>
+                </div>
+              </div>
 
-                                  <span className="text-[10px] text-app-text-muted">
-                                    شناسه: {item.id}
-                                  </span>
-                                </div>
+              {/* Divider */}
+              <div className="my-3 border-t border-app-border" />
 
-                                <h3
-                                  dir="auto"
-                                  className="mt-4 break-words text-xl font-black leading-9 tracking-tight text-app-text sm:text-2xl"
-                                >
-                                  {item.word}
-                                </h3>
-                              </div>
+              {/* Meaning */}
+              <div>
+                <p className="mb-1 text-[10px] font-semibold text-app-text-muted">
+                  معنی / ترجمه
+                </p>
 
-                              <div className="flex shrink-0 items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => openEditModal(item)}
-                                  aria-label="ویرایش"
-                                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-app-border text-sm text-app-text-muted transition hover:bg-app-primary/10 hover:text-app-primary"
-                                >
-                                  ✎
-                                </button>
+                <p
+                  dir="auto"
+                  className="break-words whitespace-pre-wrap text-sm leading-7 text-app-text-muted"
+                >
+                  {item.meaning}
+                </p>
+              </div>
 
-                                <button
-                                  type="button"
-                                  onClick={() => handleDelete(item.id)}
-                                  disabled={deletingId === item.id}
-                                  aria-label="حذف"
-                                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-app-border text-sm text-app-danger transition hover:bg-app-danger/10 disabled:opacity-50"
-                                >
-                                  {deletingId === item.id ? "..." : "×"}
-                                </button>
-                              </div>
-                            </div>
-
-                            <div className="mt-5 rounded-xl bg-app-input/70 p-4">
-                              <div className="mb-2 flex items-center gap-2">
-                                <span className="h-1.5 w-1.5 rounded-full bg-app-primary" />
-                                <span className="text-[11px] font-bold text-app-text-muted">
-                                  معنی / ترجمه
-                                </span>
-                              </div>
-
-                              <p
-                                dir="auto"
-                                className="break-words whitespace-pre-wrap text-sm leading-8 text-app-text"
-                              >
-                                {item.meaning}
-                              </p>
-                            </div>
-
-                            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-app-border pt-4">
-                              <div className="flex items-center gap-2 text-xs text-app-text-muted">
-                                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-app-primary/10 text-app-primary">
-                                  ◈
-                                </span>
-                                ذخیره‌شده در واژگان شخصی
-                              </div>
-
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  try {
-                                    await navigator.clipboard.writeText(
-                                      `${item.word}\n${item.meaning}`,
-                                    );
-                                  } catch (err) {
-                                    console.error("Copy error:", err);
-                                    setError("کپی متن انجام نشد.");
-                                  }
-                                }}
-                                className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-app-primary transition hover:bg-app-primary/10"
-                              >
-                                کپی متن
-                                <span>▣</span>
-                              </button>
-                            </div>
-                          </div>
-                        </article>
+              {/* Footer */}
+              <div className="mt-3 flex justify-end border-t border-app-border pt-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(
+                        `${item.word}\n${item.meaning}`
                       );
-                    })}
-                  </div>
+                    } catch (err) {
+                      console.error("Copy error:", err);
+                      setError("کپی متن انجام نشد.");
+                    }
+                  }}
+                  className="rounded-lg px-3 py-1.5 text-[11px] font-semibold text-app-text-muted transition hover:bg-app-primary/10 hover:text-app-primary"
+                >
+                  کپی متن
+                </button>
+              </div>
+            </article>
+          );
+        })}
+      </div>
 
-                  {/* Pagination */}
-                  {totalPages > 1 && (
-                    <div className="flex flex-col gap-3 rounded-2xl border border-app-border bg-app-surface px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                      <p className="text-xs text-app-text-muted">
-                        نمایش{" "}
-                        {formatCount((currentPage - 1) * PAGE_SIZE + 1)}
-                        {" تا "}
-                        {formatCount(
-                          Math.min(
-                            currentPage * PAGE_SIZE,
-                            filteredWords.length,
-                          ),
-                        )}
-                        {" از "}
-                        {formatCount(filteredWords.length)} مورد
-                      </p>
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex flex-col gap-3 rounded-xl border border-app-border bg-app-surface px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-app-text-muted">
+            نمایش{" "}
+            {formatCount((currentPage - 1) * PAGE_SIZE + 1)}
+            {" تا "}
+            {formatCount(
+              Math.min(currentPage * PAGE_SIZE, filteredWords.length)
+            )}
+            {" از "}
+            {formatCount(filteredWords.length)} مورد
+          </p>
 
-                      <div className="flex flex-wrap items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setCurrentPage((prev) => Math.max(1, prev - 1))
-                          }
-                          disabled={currentPage === 1}
-                          className="rounded-lg border border-app-border px-3 py-2 text-xs text-app-text-muted transition hover:bg-app-surface-hover disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          قبلی
-                        </button>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() =>
+                setCurrentPage((prev) => Math.max(1, prev - 1))
+              }
+              disabled={currentPage === 1}
+              className="rounded-lg border border-app-border px-3 py-2 text-xs text-app-text-muted transition hover:bg-app-surface-hover disabled:opacity-40"
+            >
+              قبلی
+            </button>
 
-                        {getPageNumbers().map((page) => (
-                          <button
-                            key={page}
-                            type="button"
-                            onClick={() => setCurrentPage(page)}
-                            className={`flex h-9 w-9 items-center justify-center rounded-lg text-xs font-bold transition ${
-                              currentPage === page
-                                ? "bg-app-primary text-white"
-                                : "border border-app-border text-app-text-muted hover:bg-app-surface-hover"
-                            }`}
-                          >
-                            {formatCount(page)}
-                          </button>
-                        ))}
+            {getPageNumbers().map((page) => (
+              <button
+                key={page}
+                type="button"
+                onClick={() => setCurrentPage(page)}
+                className={`flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-xs font-bold transition ${
+                  currentPage === page
+                    ? "bg-app-primary text-white"
+                    : "border border-app-border text-app-text-muted hover:bg-app-surface-hover"
+                }`}
+              >
+                {formatCount(page)}
+              </button>
+            ))}
 
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setCurrentPage((prev) =>
-                              Math.min(totalPages, prev + 1),
-                            )
-                          }
-                          disabled={currentPage === totalPages}
-                          className="rounded-lg border border-app-border px-3 py-2 text-xs text-app-text-muted transition hover:bg-app-surface-hover disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          بعدی
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-            </section>
+            <button
+              type="button"
+              onClick={() =>
+                setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+              }
+              disabled={currentPage === totalPages}
+              className="rounded-lg border border-app-border px-3 py-2 text-xs text-app-text-muted transition hover:bg-app-surface-hover disabled:opacity-40"
+            >
+              بعدی
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  )}
+</section>
 
             {/* Bottom Info */}
             <section className="flex items-start gap-3 rounded-2xl border border-app-primary/20 bg-app-primary/5 p-5">

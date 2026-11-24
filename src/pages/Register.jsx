@@ -3,6 +3,56 @@ import { NavLink, useNavigate } from "react-router-dom";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
+function PasswordToggle({ visible, onToggle }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-label={visible ? "مخفی کردن رمز عبور" : "نمایش رمز عبور"}
+      aria-pressed={visible}
+      className="absolute left-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-app-text-muted transition hover:bg-app-primary/10 hover:text-app-primary"
+    >
+      {visible ? (
+        <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+          <path
+            d="M3 3L21 21"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+          />
+          <path
+            d="M10.6 10.6A2 2 0 0013.4 13.4"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+          />
+          <path
+            d="M9.9 5.2A10.8 10.8 0 0112 5c5 0 8.5 4.5 9 7-.2 1-1 2.2-2.1 3.3M6.2 6.2C3.9 7.7 2.3 10 2 12c.5 2.5 4 7 10 7 1.2 0 2.3-.2 3.3-.6"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+          />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+          <path
+            d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"
+            stroke="currentColor"
+            strokeWidth="1.8"
+          />
+          <circle
+            cx="12"
+            cy="12"
+            r="3"
+            stroke="currentColor"
+            strokeWidth="1.8"
+          />
+        </svg>
+      )}
+    </button>
+  );
+}
+
 function Register() {
   const navigate = useNavigate();
 
@@ -13,6 +63,9 @@ function Register() {
     password: "",
     confirmPassword: "",
   });
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -32,6 +85,7 @@ function Register() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+
     setError("");
     setSuccess("");
 
@@ -144,19 +198,11 @@ function Register() {
             className="mb-5 flex w-fit items-center gap-2.5 lg:mb-4"
           >
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-app-primary text-white shadow-lg shadow-app-primary/25">
-              <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6">
-                <path
-                  d="M4 5.5C4 4.67 4.67 4 5.5 4H11V20H6C4.9 20 4 19.1 4 18V5.5Z"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                />
-                <path
-                  d="M20 5.5C20 4.67 19.33 4 18.5 4H13V20H18C19.1 20 20 19.1 20 18V5.5Z"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                />
-                <path d="M12 7V20" stroke="currentColor" strokeWidth="1.8" />
-              </svg>
+              <img
+                src="./../../public/logo.png.png"
+                alt="Ainglish"
+                className="h-12 w-12 rounded-xl object-contain"
+              />
             </div>
 
             <div>
@@ -269,20 +315,27 @@ function Register() {
                 رمز عبور
               </label>
 
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="new-password"
-                placeholder="حداقل ۸ کاراکتر"
-                value={formData.password}
-                onChange={handleChange}
-                required
-                minLength={8}
-                maxLength={128}
-                className={inputClass}
-                dir="ltr"
-              />
+              <div className="relative">
+                <input
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="new-password"
+                  placeholder="حداقل ۸ کاراکتر"
+                  value={formData.password}
+                  onChange={handleChange}
+                  required
+                  minLength={8}
+                  maxLength={128}
+                  className={`${inputClass} pl-12`}
+                  dir="ltr"
+                />
+
+                <PasswordToggle
+                  visible={showPassword}
+                  onToggle={() => setShowPassword((prev) => !prev)}
+                />
+              </div>
             </div>
 
             {/* Confirm Password */}
@@ -294,18 +347,25 @@ function Register() {
                 تکرار رمز عبور
               </label>
 
-              <input
-                id="confirmPassword"
-                name="confirmPassword"
-                type="password"
-                autoComplete="new-password"
-                placeholder="رمز عبور را مجدداً وارد کنید"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                required
-                className={inputClass}
-                dir="ltr"
-              />
+              <div className="relative">
+                <input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type={showConfirmPassword ? "text" : "password"}
+                  autoComplete="new-password"
+                  placeholder="رمز عبور را مجدداً وارد کنید"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  required
+                  className={`${inputClass} pl-12`}
+                  dir="ltr"
+                />
+
+                <PasswordToggle
+                  visible={showConfirmPassword}
+                  onToggle={() => setShowConfirmPassword((prev) => !prev)}
+                />
+              </div>
             </div>
 
             {/* Terms */}
@@ -402,7 +462,7 @@ function Register() {
                 strokeLinejoin="round"
               />
             </svg>
-            اطلاعات شما با امنیت محافظت می‌شوند.
+            اطلاعات شما با امنیت محافظت می‌شود.
           </div>
         </section>
 
@@ -418,7 +478,7 @@ function Register() {
             </span>
 
             <h2 className="mt-6 max-w-md text-3xl font-black leading-[1.5] xl:text-4xl">
-              یادگیری زبان،
+              یادگیری زبان انگلیسی
               <br />
               از همین امروز!
             </h2>
@@ -431,7 +491,7 @@ function Register() {
 
           <div className="relative z-10 my-6 space-y-3">
             {[
-              ["🤖", "مترجم هوشمند", "ترجمه سریع و دقیق با کمک هوش مصنوعی"],
+              ["🧠", "مترجم هوشمند", "ترجمه سریع و دقیق با کمک هوش مصنوعی"],
               [
                 "📚",
                 "مدیریت واژگان",

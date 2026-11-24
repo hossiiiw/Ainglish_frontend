@@ -92,8 +92,39 @@ function DashboardHeader({ onMenuClick }) {
               {username}
             </span>
 
-            <span className="text-app-text-muted">
-              {profileMenuOpen ? "⌃" : "⌄"}
+            <span className="text-app-text-muted ">
+              {profileMenuOpen ? (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M 12 2 L 12 22" />
+                  <path d="M12 2 L15 5" />
+                  <path d="M12 2 L9 5" />
+                </svg>
+              ) : (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M12 2V22" />
+                  <path d="M8 18L12 22L16 18" />
+                </svg>
+              )}
             </span>
           </button>
 
