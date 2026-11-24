@@ -16,7 +16,7 @@ function Header() {
         <Link to="/" className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-app-primary text-white shadow-lg shadow-app-primary/25">
             <img
-              src="./../../public/logo.png.png"
+              src="/logo.png.png"
               alt="Ainglish"
               className="h-12 w-12 rounded-xl object-contain"
             />

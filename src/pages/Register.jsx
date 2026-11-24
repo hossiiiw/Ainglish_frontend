@@ -199,7 +199,7 @@ function Register() {
           >
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-app-primary text-white shadow-lg shadow-app-primary/25">
               <img
-                src="./../../public/logo.png.png"
+                src="/logo.png.png"
                 alt="Ainglish"
                 className="h-12 w-12 rounded-xl object-contain"
               />

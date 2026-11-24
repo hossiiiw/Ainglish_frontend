@@ -98,7 +98,7 @@ function Login() {
             className="mx-auto mb-5 flex w-fit flex-col items-center"
           >
             <img
-              src="./../../public/logo.png.png"
+              src="/logo.png.png"
               alt="Ainglish Logo"
               className="h-20 w-20 rounded-2xl object-contain drop-shadow-lg transition duration-300 hover:scale-105"
             />
