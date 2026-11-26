@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import Header from "../components/Header";
+import LandingTranslator from "../components/LandingTranslator";
 
 const features = [
   {
@@ -236,6 +237,9 @@ export default function Landing() {
           </div>
         </section>
 
+        {/* Guest and authenticated translator */}
+        <LandingTranslator />
+
         {/* Features */}
         <section
           id="features"
@@ -316,7 +320,7 @@ export default function Landing() {
         </section>
 
         {/* Translator CTA */}
-        <section id="translator" className="scroll-mt-20 px-5 pb-20 lg:px-8">
+        <section id="translator-cta" className="scroll-mt-20 px-5 pb-20 lg:px-8">
           <div className="relative mx-auto max-w-7xl overflow-hidden rounded-[2rem] bg-gradient-to-l from-app-primary-dark via-app-primary to-[#a78bfa] px-7 py-14 text-center text-white sm:px-12 sm:py-20">
             <div className="absolute -right-20 -top-24 h-72 w-72 rounded-full border border-white/10" />
             <div className="absolute -bottom-32 -left-10 h-80 w-80 rounded-full border border-white/10" />

@@ -38,6 +38,21 @@ const Profile = () => {
   const phone = user?.phone || "ثبت نشده";
   const avatarLetter = username.charAt(0);
 
+  const isSuperAdmin = user?.role === "super_admin";
+  const isAdmin = isSuperAdmin || user?.role === "admin" || user?.is_admin === true;
+
+  const accountTitle = isSuperAdmin
+    ? "مدیر ارشد Ainglish"
+    : isAdmin
+      ? "مدیر Ainglish"
+      : "عضو Ainglish";
+
+  const accountType = isSuperAdmin
+    ? "مدیر ارشد"
+    : isAdmin
+      ? "مدیر"
+      : "کاربر عادی";
+
   const isDark = theme === "dark";
 
   return (
@@ -106,7 +121,7 @@ const Profile = () => {
                       <h3 className="text-xl font-black">{username}</h3>
 
                       <p className="mt-1 text-sm text-app-text-muted">
-                        {user?.is_admin ? "مدیر Ainglish" : "عضو Ainglish"}
+                        {accountTitle}
                       </p>
                     </div>
                   </div>
@@ -148,7 +163,7 @@ const Profile = () => {
 
                       <span className="inline-flex items-center gap-2 text-sm font-bold text-app-success">
                         <span className="h-2 w-2 rounded-full bg-app-success" />
-                        {user?.is_admin ? "مدیر" : "کاربر عادی"}
+                        {accountType}
                       </span>
                     </div>
                   </div>

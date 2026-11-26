@@ -28,10 +28,12 @@ function AppRoute() {
         <Route path="/register" element={<Register />} />
       </Route>
 
+      {/* مترجم هوشمند برای همه کاربران */}
+      <Route path="/ai-translator" element={<AiTranslator />} />
+
       {/* صفحات مخصوص کاربران واردشده */}
       <Route element={<PrivateRoute />}>
         <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/ai-translator" element={<AiTranslator />} />
         <Route path="/vocabulary" element={<Vocabulary />} />
         <Route path="/add-vocab" element={<AddVocabulary />} />
         <Route path="/profile" element={<Profile />} />

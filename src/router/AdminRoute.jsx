@@ -16,7 +16,12 @@ function AdminRoute() {
     return <Navigate to="/login" replace />;
   }
 
-  if (!user?.is_admin) {
+  const hasAdminAccess =
+    user?.role === "admin" ||
+    user?.role === "super_admin" ||
+    user?.is_admin === true;
+
+  if (!hasAdminAccess) {
     return <Navigate to="/dashboard" replace />;
   }
 

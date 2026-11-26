@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import DashboardHeader from "../components/Dashboard/DashboardHeader";
+import Header from "../components/Header";
+import { useAuth } from "../context/AuthContext";
 import Sidebar from "../components/Sidebar";
 import api from "../services/api";
 
 const PAGE_SIZE = 7;
 
 const AiTranslator = () => {
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [guestRemaining, setGuestRemaining] = useState(3);
 
   // Translator
   const [sourceText, setSourceText] = useState("");
@@ -22,7 +26,7 @@ const AiTranslator = () => {
   const [history, setHistory] = useState([]);
   const [historyTotal, setHistoryTotal] = useState(0);
   const [historyOffset, setHistoryOffset] = useState(0);
-  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState("");
   const [selectedHistory, setSelectedHistory] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
@@ -79,6 +83,7 @@ const AiTranslator = () => {
   // -------------------- HISTORY --------------------
 
   const fetchHistory = useCallback(async (offset = 0) => {
+    if (!isAuthenticated) return;
     setHistoryLoading(true);
     setHistoryError("");
 
@@ -101,11 +106,13 @@ const AiTranslator = () => {
     } finally {
       setHistoryLoading(false);
     }
-  }, []);
+  }, [isAuthenticated]);
 
   useEffect(() => {
-    fetchHistory(0);
-  }, [fetchHistory]);
+    if (!authLoading && isAuthenticated) {
+      fetchHistory(0);
+    }
+  }, [authLoading, isAuthenticated, fetchHistory]);
 
   const handleHistoryDetail = async (id) => {
     if (selectedHistory?.id === id) {
@@ -174,6 +181,8 @@ const AiTranslator = () => {
   // -------------------- TRANSLATOR --------------------
 
   const handleTranslate = async () => {
+    if (authLoading) return;
+
     const text = sourceText.trim();
 
     if (!text) {
@@ -190,43 +199,106 @@ const AiTranslator = () => {
     setTechnicalTerms([]);
     setAddedWords({});
 
+    let streamCompleted = false;
+
     try {
-      const response = await api.post("/translator/translate", {
-        text,
-      });
+      if (isAuthenticated) {
+        await api.postStream(
+          "/translator/translate/stream",
+          { text },
+          async (event, data) => {
+            if (event === "translation") {
+              if (typeof data?.text === "string") {
+                const characters = Array.from(data.text);
 
-      const result = getResponseData(response);
+                for (let index = 0; index < characters.length; index += 4) {
+                  const chunk = characters.slice(index, index + 4).join("");
 
-      const translatedText =
-        typeof result === "string"
-          ? result
-          : (result?.translation ??
-            result?.translated_text ??
-            result?.result ??
-            result?.data?.translation ??
-            "");
+                  setTranslation((previous) => previous + chunk);
 
-      if (!translatedText || typeof translatedText !== "string") {
-        throw new Error("پاسخ دریافتی از سرور معتبر نیست.");
+                  await new Promise((resolve) => setTimeout(resolve, 12));
+                }
+              }
+              return;
+            }
+
+            if (event === "complete") {
+              if (
+                typeof data?.translation !== "string" ||
+                !data.translation.trim()
+              ) {
+                throw new Error("پاسخ نهایی ترجمه معتبر نیست.");
+              }
+
+              setTranslation(data.translation);
+              setTechnicalTerms(
+                normalizeTerms(data.technical_terms),
+              );
+              streamCompleted = true;
+              return;
+            }
+
+            if (event === "error") {
+              throw new Error(
+                data?.message || "خطایی هنگام ترجمه رخ داد.",
+              );
+            }
+          },
+        );
+
+        if (!streamCompleted) {
+          throw new Error("جریان ترجمه پیش از تکمیل متوقف شد.");
+        }
+
+        setSuccessMessage("ترجمه با موفقیت انجام شد.");
+        await fetchHistory(0);
+      } else {
+        const response = await api.postGuest(
+          "/translator/translate",
+          { text },
+        );
+
+        const result = getResponseData(response);
+
+        const translatedText =
+          typeof result === "string"
+            ? result
+            : (result?.translation ??
+              result?.translated_text ??
+              result?.result ??
+              result?.data?.translation ??
+              "");
+
+        if (!translatedText || typeof translatedText !== "string") {
+          throw new Error("پاسخ دریافتی از سرور معتبر نیست.");
+        }
+
+        const terms =
+          result?.technical_terms ??
+          result?.terms ??
+          result?.data?.technical_terms ??
+          [];
+
+        setTranslation(translatedText);
+        setTechnicalTerms(normalizeTerms(terms));
+        setSuccessMessage("ترجمه با موفقیت انجام شد.");
+
+        if (typeof result?.guest_remaining === "number") {
+          setGuestRemaining(result.guest_remaining);
+        }
       }
-
-      const terms =
-        result?.technical_terms ??
-        result?.terms ??
-        result?.data?.technical_terms ??
-        [];
-
-      setTranslation(translatedText);
-      setTechnicalTerms(normalizeTerms(terms));
-      setSuccessMessage("ترجمه با موفقیت انجام شد.");
-
-      await fetchHistory(0);
     } catch (err) {
       console.error("Translation error:", err);
 
+      if (isAuthenticated && !streamCompleted) {
+        setTranslation("");
+        setTechnicalTerms([]);
+      }
+
       if (err?.status === 429) {
         setError(
-          "محدودیت درخواست ترجمه فعال شده است. لطفاً کمی بعد دوباره تلاش کنید.",
+          err?.data?.detail ||
+            "سهمیه ترجمه شما به پایان رسیده است. لطفاً کمی بعد دوباره تلاش کنید.",
         );
       } else {
         setError(
@@ -262,6 +334,8 @@ const AiTranslator = () => {
   // -------------------- VOCABULARY --------------------
 
   const handleAddWord = async (word, meaning, key) => {
+    if (!isAuthenticated) return;
+
     const cleanWord = String(word || "").trim();
     const cleanMeaning = String(meaning || "").trim();
 
@@ -329,6 +403,8 @@ const AiTranslator = () => {
   };
 
   const handleAddTranslation = async () => {
+    if (!isAuthenticated) return;
+
     const payload = getTranslationVocabularyPayload();
 
     if (!payload) {
@@ -422,20 +498,22 @@ const AiTranslator = () => {
                 )}
               </div>
 
-              <button
-                type="button"
-                disabled={
-                  !word || !meaning || addingWords[key] || addedWords[key]
-                }
-                onClick={() => handleAddWord(word, meaning, key)}
-                className="shrink-0 rounded-xl bg-app-primary/10 px-4 py-2.5 text-xs font-bold text-app-primary transition hover:bg-app-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {addingWords[key]
-                  ? "در حال افزودن..."
-                  : addedWords[key]
-                    ? "✓ اضافه شد"
-                    : "＋ افزودن به واژگان"}
-              </button>
+              {isAuthenticated && (
+                <button
+                  type="button"
+                  disabled={
+                    !word || !meaning || addingWords[key] || addedWords[key]
+                  }
+                  onClick={() => handleAddWord(word, meaning, key)}
+                  className="shrink-0 rounded-xl bg-app-primary/10 px-4 py-2.5 text-xs font-bold text-app-primary transition hover:bg-app-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {addingWords[key]
+                    ? "در حال افزودن..."
+                    : addedWords[key]
+                      ? "✓ اضافه شد"
+                      : "＋ افزودن به واژگان"}
+                </button>
+              )}
             </div>
           );
         })}
@@ -450,13 +528,19 @@ const AiTranslator = () => {
   return (
     <main dir="rtl" className="min-h-screen bg-app-background text-app-text">
       <div className="flex min-h-screen">
-        <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} />
+        {isAuthenticated && (
+          <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} />
+        )}
 
         <div className="min-w-0 flex-1 px-4 py-6 md:px-8 lg:px-10">
           <div className="mx-auto max-w-7xl space-y-8">
-            <DashboardHeader
-              onMenuClick={() => setSidebarOpen((prev) => !prev)}
-            />
+            {isAuthenticated ? (
+              <DashboardHeader
+                onMenuClick={() => setSidebarOpen((prev) => !prev)}
+              />
+            ) : (
+              <Header />
+            )}
 
             {/* Page Title */}
             <section>
@@ -519,8 +603,9 @@ const AiTranslator = () => {
                 <div>
                   <p className="font-bold">مترجم هوشمند آماده استفاده است</p>
                   <p className="mt-1 text-sm text-app-text-muted">
-                    ترجمه‌های موفق به‌صورت خودکار در تاریخچه حساب شما ذخیره
-                    می‌شوند.
+                    {isAuthenticated
+                      ? "ترجمه‌های موفق به‌صورت خودکار در تاریخچه حساب شما ذخیره می‌شوند."
+                      : `روزانه ۳ ترجمه رایگان دارید. حداکثر طول هر متن ۵۰۰ کلمه است. سهمیه باقی‌مانده: ${guestRemaining} ترجمه.`}
                   </p>
                 </div>
               </div>
@@ -593,7 +678,11 @@ const AiTranslator = () => {
                   />
 
                   <div className="mt-3 flex items-center justify-between text-xs text-app-text-muted">
-                    <span>متن خود را وارد کنید</span>
+                    <span>
+                      {isAuthenticated
+                        ? "متن خود را وارد کنید"
+                        : `تعداد کلمات: ${sourceText.trim() ? sourceText.trim().split(/\s+/).length : 0} / ۵۰۰`}
+                    </span>
                     <span>
                       {sourceText.length.toLocaleString("fa-IR")} / ۱۰٬۰۰۰
                     </span>
@@ -612,7 +701,12 @@ const AiTranslator = () => {
                     <button
                       type="button"
                       onClick={handleTranslate}
-                      disabled={loading || !sourceText.trim()}
+                      disabled={
+                        loading ||
+                        authLoading ||
+                        !sourceText.trim() ||
+                        (!isAuthenticated && sourceText.trim().split(/\s+/).length > 500)
+                      }
                       className="rounded-xl bg-app-primary px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-app-primary/20 transition hover:bg-app-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <span className="ml-2">✦</span>
@@ -644,7 +738,7 @@ const AiTranslator = () => {
                   </div>
 
                   <div className="min-h-52 rounded-2xl border border-app-border bg-app-surface p-4">
-                    {loading ? (
+                    {loading && !translation ? (
                       <div className="flex min-h-44 flex-col items-center justify-center gap-4 text-app-text-muted">
                         <div className="h-8 w-8 animate-spin rounded-full border-4 border-app-primary/20 border-t-app-primary" />
                         <p className="text-sm">
@@ -655,7 +749,9 @@ const AiTranslator = () => {
                       <>
                         <div className="mb-4 flex items-center gap-2 text-xs font-semibold text-app-success">
                           <span className="h-2 w-2 rounded-full bg-app-success" />
-                          ترجمه با موفقیت انجام شد
+                          {loading
+                            ? "در حال دریافت ترجمه..."
+                            : "ترجمه با موفقیت انجام شد"}
                         </div>
                         <p className="whitespace-pre-wrap text-sm leading-9 text-app-text">
                           {translation}
@@ -687,20 +783,22 @@ const AiTranslator = () => {
                         کپی ترجمه
                       </button>
 
-                      <button
-                        type="button"
-                        disabled={
-                          addingWords.translation || addedWords.translation
-                        }
-                        onClick={handleAddTranslation}
-                        className="rounded-xl bg-app-primary/10 px-4 py-2.5 text-sm font-bold text-app-primary transition hover:bg-app-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {addingWords.translation
-                          ? "در حال افزودن..."
-                          : addedWords.translation
-                            ? "✓ اضافه شد"
-                            : "＋ افزودن جمله و ترجمه به واژگان من"}
-                      </button>
+                      {isAuthenticated && (
+                        <button
+                          type="button"
+                          disabled={
+                            addingWords.translation || addedWords.translation
+                          }
+                          onClick={handleAddTranslation}
+                          className="rounded-xl bg-app-primary/10 px-4 py-2.5 text-sm font-bold text-app-primary transition hover:bg-app-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {addingWords.translation
+                            ? "در حال افزودن..."
+                            : addedWords.translation
+                              ? "✓ اضافه شد"
+                              : "＋ افزودن جمله و ترجمه به واژگان من"}
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -743,6 +841,7 @@ const AiTranslator = () => {
             )}
 
             {/* History */}
+            {isAuthenticated && (
             <section
               id="translation-history"
               className="rounded-3xl border border-app-border bg-app-surface p-5 sm:p-7"
@@ -944,6 +1043,7 @@ const AiTranslator = () => {
                 </>
               )}
             </section>
+            )}
 
             {/* Tips */}
             <section className="grid gap-4 md:grid-cols-3">
@@ -963,21 +1063,31 @@ const AiTranslator = () => {
                 </div>
                 <h3 className="font-bold">اصطلاحات تخصصی</h3>
                 <p className="mt-2 text-sm leading-7 text-app-text-muted">
-                  اصطلاحات تخصصی را استخراج کن و مستقیماً به واژگان شخصی خود
-                  اضافه کن.
+                  اصطلاحات تخصصی و معانی آن‌ها را از متن ترجمه‌شده استخراج و بررسی کن.
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-app-border bg-app-surface p-5">
-                <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-app-warning/10 text-xl text-app-warning">
-                  ◈
+              {isAuthenticated ? (
+                <div className="rounded-2xl border border-app-border bg-app-surface p-5">
+                  <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-app-warning/10 text-xl text-app-warning">
+                    ◈
+                  </div>
+                  <h3 className="font-bold">تاریخچه هوشمند</h3>
+                  <p className="mt-2 text-sm leading-7 text-app-text-muted">
+                    ترجمه‌های قبلی را مشاهده کن، جزئیاتشان را بخوان و موارد غیرضروری را حذف کن.
+                  </p>
                 </div>
-                <h3 className="font-bold">تاریخچه هوشمند</h3>
-                <p className="mt-2 text-sm leading-7 text-app-text-muted">
-                  ترجمه‌های قبلی را مشاهده کن، جزئیاتشان را بخوان و موارد
-                  غیرضروری را حذف کن.
-                </p>
-              </div>
+              ) : (
+                <div className="rounded-2xl border border-app-border bg-app-surface p-5">
+                  <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-app-warning/10 text-xl text-app-warning">
+                    ◈
+                  </div>
+                  <h3 className="font-bold">بدون نیاز به ثبت‌نام</h3>
+                  <p className="mt-2 text-sm leading-7 text-app-text-muted">
+                    بدون ساخت حساب، ترجمه هوشمند را امتحان کن. برای استفاده از تاریخچه و واژگان شخصی وارد حساب شو.
+                  </p>
+                </div>
+              )}
             </section>
           </div>
         </div>
